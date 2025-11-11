@@ -9,10 +9,5 @@
 // SRJ solver - host version
 // Returns: total time, time per iteration, number of iterations
 void SRJ(Solver* Sol, Setup* setup, real_t* time_total, real_t* time_iteration, int* num_iterations);
-#ifdef USE_CUDA
-// SRJ solver - device version  
-// Returns: total time, time per iteration, number of iterations
-void SRJ_device(Solver* Sol, Setup* setup, real_t* time_total, real_t* time_iteration, int* num_iterations);
-#endif
 
 #endif // SRJ_H

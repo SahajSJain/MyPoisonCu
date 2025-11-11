@@ -12,12 +12,12 @@
 #endif
 #include <iostream>
 #include "INCLUDE/structs.cuh"
-#include "MEMMANAGE/memmanage.cuh"
 #include "COEFFICIENTS/coefficients.cuh"
 #include "INPUTOUTPUT/inputoutput.h"
 #include "CALCULATORS/calculators.cuh"
 #include "SOLVERS/switch_solvers.h"
 using namespace std; // for cout should never use it but I dont care
+
 int main(int argc, char** argv) {
     // ========================================================================
     //                CHECK OPENACC GPU AVAILABILITY
@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
     printf("         OpenACC runtime may not be properly initialized.\n\n");
     #endif
     #endif
+    
     // ========================================================================
     // Create setup struct and read from input.dat
     // ======================================================================== 
@@ -53,84 +54,79 @@ int main(int argc, char** argv) {
         return 1;
     }
     cout << "Input file read successfully.\n";
+    
     // ========================================================================
-    // ALLOCATE AND INITIALIZE SOLVER
+    // CREATE AND INITIALIZE SOLVER
     // ========================================================================
-    // Create solver struct and zero-initialize pointers
-    cout << "Creating solver struct...\n";
-    Solver Sol;
-    memset(&Sol, 0, sizeof(Solver));
     // Extract values from setup
     int N = setup.N;
-    int Nf = 0;
-    int Nc = 0;
+    int Nf = 0;  // Not used for non-multigrid methods
+    int Nc = 0;  // Not used for non-multigrid methods
     int level = 0;
     real_t Lxs = setup.Lx_start;
     real_t Lxe = setup.Lx_end;
     real_t Lys = setup.Ly_start;
     real_t Lye = setup.Ly_end;
-    // Allocate solver - use method from input 
-    cout << "Allocating solver...\n";
-    allocateSolver(&Sol, N, Nf, Nc, level, Lxs, Lxe, Lys, Lye, setup.method);
-    cout << "Solver allocated successfully.\n";
+    
+    // Create solver using constructor
+    cout << "Creating solver...\n";
+    Solver Sol(N, Nf, Nc, level, Lxs, Lxe, Lys, Lye, setup.method);
+    cout << "Solver created successfully.\n";
+    
     // ========================================================================
     // INITIALIZE SOLVER 
     // ========================================================================
     // Initialize operators and fields on host (also copies boundary conditions from setup)
-    // Note: initializeSolver internally clears device memory and copies everything to device
     cout << "Initializing solver...\n";
-    initializeSolver(&Sol, &setup);     
+    initializeSolver(Sol, &setup);     
     cout << "Solver initialized successfully.\n";
+    
     // ========================================================================
     // CALL THE ACTUAL SOLVER 
     // ========================================================================
     real_t time_total = 0.0;
     real_t time_iteration = 0.0;
     int num_iterations = 0;
-    switch_solver(&Sol, &setup, &time_total, &time_iteration, &num_iterations);
+    switch_solver(Sol, &setup, &time_total, &time_iteration, &num_iterations);
+    
     // ========================================================================
     // Print summary
     // ========================================================================
     cout<<"-------------------------------------------------------------\n";
     cout<<"Solver Summary:\n";
     cout<<"  Method Used: ";
-    if (setup.method == 1) {    
+    if (setup.method == METHOD_JACOBI) {    
+        cout<<"Jacobi Method\n";
+    } else if (setup.method == METHOD_SRJ) {
         cout<<"SRJ Method\n";
-    } else if (setup.method == 2) {
-        cout<<"Multigrid Method\n";
-    } else if (setup.method == 3) {
+    } else if (setup.method == METHOD_BICGSTAB) {
         cout<<"BiCGStab Method\n";
     } else {
         cout<<"Unknown Method\n";
     }
-    // print if using device or host or both
+    
+    // print computation mode based on preprocessor flags
     cout<<"  Computation Mode: ";
-    if (setup.USE_DEVICE == 1 && setup.USE_HOST == 0) {
-        cout<<"Device (GPU) Only\n";
-    } else if (setup.USE_DEVICE == 0 && setup.USE_HOST == 1) {
-        cout<<"Host (CPU) Only\n";
-    } else if (setup.USE_DEVICE == 1 && setup.USE_HOST == 1) {
-        cout<<"Hybrid Device (GPU) + Host (CPU)\n";
-    } else {
-        cout<<"No Computation Mode Selected!\n";
-    }
+    #ifdef USE_CUDA
+    cout<<"CUDA (GPU)\n";
+    #elif defined(USE_ACC)
+    cout<<"OpenACC\n";
+    #elif defined(USE_OMP)
+    cout<<"OpenMP (CPU)\n";
+    #else
+    cout<<"Serial (CPU)\n";
+    #endif
+    
     cout<<"-------------------------------------------------------------\n";
-
     cout<<"  Total Time Taken: "<<time_total<<" seconds\n";
     cout<<"  Time per Iteration: "<<time_iteration<<" seconds\n";
     cout<<"  Number of Iterations: "<<num_iterations<<"\n";
     cout<<"-------------------------------------------------------------\n";
+    
     // ========================================================================
     // CLEANUP AND EXIT
     // ========================================================================
-    // Delete device data before deallocating host
-    #ifdef USE_ACC
-    deleteSolverFromDeviceACC(&Sol);
-    #endif
-    
-    // Cleanup
-    deallocateSolver(&Sol);
-    clearAllDeviceMemory();
+    // Solver destructor will handle all cleanup automatically
     printf("Done.\n");
     return 0;
 }

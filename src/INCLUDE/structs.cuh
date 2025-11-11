@@ -1,4 +1,4 @@
-// INCLUDE/types.h
+// INCLUDE/structs.h
 #ifndef TYPES_H
 #define TYPES_H
 #include <cuda_runtime.h>  
@@ -104,9 +104,13 @@
 #define METHOD_MULTIGRID 4
 
 // Simulation type string for file naming
-#ifdef USE_ACC
+#ifdef defined(USE_CUDA)
+    #define SIMTYPE "cuda"
+#elif defined(USE_ACC)
     #define SIMTYPE "acc"
 #elif defined(USE_OMP)
+// moved USE_OMP check after USE_CUDA because we might use cuda and omp together
+//   in that case it is still a cuda simulation. device functions will be used instead of host functions
     #define SIMTYPE "omp"
 #else
     #define SIMTYPE "serial"
@@ -141,7 +145,6 @@ struct Setup{
     real_t* SRJomega; // Array of relaxation parameters for SRJ method 
     // ErrorCheck = 0 means no error checking 
     // ErrorCheck = 1 means compute error norm against manufactured solution 
-    int USE_DEVICE, USE_HOST; //Flag to indicate whether to use device (GPU) or host (CPU) computations 
 };  
 
 // Data structures
@@ -398,7 +401,7 @@ public:
     // Device operations
     void upload();
     void download();
-    
+
 private:
     void setupGPUParameters();
     void allocateCoordinates();

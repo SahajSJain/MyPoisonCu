@@ -1,3 +1,4 @@
+// INCLUDE/field.cu
 #include "structs.cuh"
 
 #ifdef USE_CUDA

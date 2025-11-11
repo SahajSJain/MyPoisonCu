@@ -1,4 +1,3 @@
-
 // CALCULATORS/calculators_device.cu
 // All device (non-kernel) functions for calculator operations
 
@@ -14,12 +13,12 @@
 #define CENTER IDX(i, j, Nb)
 
 // ===================== DOT PRODUCT DEVICE FUNCTIONS =====================
-void calculate_dot_product_device(Field *u1, Field *u2, real_t* result,
+void calculate_dot_product_device(Field<real_t> &u1, Field<real_t> &u2, real_t &result,
 								  int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-  int N = u1->N;
-  int Nb = u1->Nb;
+  int N = u1.N;
+  int Nb = u1.Nb;
   real_t *d_dotproduct;
   cudaMalloc((void**)&d_dotproduct, sizeof(real_t));
   real_t zero = ZERO;
@@ -27,21 +26,21 @@ void calculate_dot_product_device(Field *u1, Field *u2, real_t* result,
   dim3 blockSize(numThreads, numThreads);
   dim3 gridSize(numBlocks, numBlocks);
   calculate_dot_product_kernel<<<gridSize, blockSize>>>(
-	  u1->u_d, u2->u_d, d_dotproduct, N, Nb);
+	  u1.u_d, u2.u_d, d_dotproduct, N, Nb);
   cudaDeviceSynchronize();
   real_t host_result;
   cudaMemcpy(&host_result, d_dotproduct, sizeof(real_t), cudaMemcpyDeviceToHost);
   cudaFree(d_dotproduct);
-  *result = host_result;
+  result = host_result;
 #endif
 }
 
-void calculate_opinv_dot_product_device(Field *u1, Field *u2, Operator *op, real_t* result,
+void calculate_opinv_dot_product_device(Field<real_t> &u1, Field<real_t> &u2, Operator &op, real_t &result,
 										int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-  int N = u1->N;
-  int Nb = u1->Nb;
+  int N = u1.N;
+  int Nb = u1.Nb;
   real_t *d_dotproduct;
   cudaMalloc((void**)&d_dotproduct, sizeof(real_t));
   real_t zero = ZERO;
@@ -49,28 +48,28 @@ void calculate_opinv_dot_product_device(Field *u1, Field *u2, Operator *op, real
   dim3 blockSize(numThreads, numThreads);
   dim3 gridSize(numBlocks, numBlocks);
   calculate_opinv_dot_product_kernel<<<gridSize, blockSize>>>(
-	  u1->u_d, u2->u_d, op->CoPinv_d, d_dotproduct, N, Nb);
+	  u1.u_d, u2.u_d, op.CoPinv_d, d_dotproduct, N, Nb);
   cudaDeviceSynchronize();
   real_t host_result;
   cudaMemcpy(&host_result, d_dotproduct, sizeof(real_t), cudaMemcpyDeviceToHost);
   cudaFree(d_dotproduct);
-  *result = host_result;
+  result = host_result;
 #endif
 }
 
 // ===================== VECTOR OPERATIONS DEVICE FUNCTIONS =====================
-void calculate_vector_scalar_addition_device(real_t alpha, Field *phi, real_t beta, Field *result, int numThreads, int numBlocks)
+void calculate_vector_scalar_addition_device(real_t alpha, Field<real_t> &phi, real_t beta, Field<real_t> &result, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-	int N = result->N;
-	int Nb = result->Nb;
+	int N = result.N;
+	int Nb = result.Nb;
 	dim3 blockSize(numThreads, numThreads);
 	dim3 gridSize(numBlocks, numBlocks);
 	calculate_vector_scalar_addition_kernel<<<gridSize, blockSize>>>(
 		alpha,
-		phi->u_d,
+		phi.u_d,
 		beta,
-		result->u_d,
+		result.u_d,
 		N,
 		Nb
 	);
@@ -90,19 +89,19 @@ void calculate_vector_product_device(real_t* u1_d, real_t* u2_d, real_t* result_
 #endif
 }
 
-void calculate_vector_linear_combination_device(real_t alpha1, real_t alpha2, Field *phi1, Field *phi2, Field *result, int numThreads, int numBlocks)
+void calculate_vector_linear_combination_device(real_t alpha1, real_t alpha2, Field<real_t> &phi1, Field<real_t> &phi2, Field<real_t> &result, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-	int N = result->N;
-	int Nb = result->Nb;
+	int N = result.N;
+	int Nb = result.Nb;
 	dim3 blockSize(numThreads, numThreads);
 	dim3 gridSize(numBlocks, numBlocks);
 	calculate_vector_linear_combination_kernel<<<gridSize, blockSize>>>(
 		alpha1,
 		alpha2,
-		phi1->u_d,
-		phi2->u_d,
-		result->u_d,
+		phi1.u_d,
+		phi2.u_d,
+		result.u_d,
 		N,
 		Nb
 	);
@@ -110,19 +109,19 @@ void calculate_vector_linear_combination_device(real_t alpha1, real_t alpha2, Fi
 #endif
 }
 
-void calculate_vector_addition_device(real_t alpha1, real_t alpha2, Field *phi1, Field *phi2, Field *result, int numThreads, int numBlocks)
+void calculate_vector_addition_device(real_t alpha1, real_t alpha2, Field<real_t> &phi1, Field<real_t> &phi2, Field<real_t> &result, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-	int N = result->N;
-	int Nb = result->Nb;
+	int N = result.N;
+	int Nb = result.Nb;
 	dim3 blockSize(numThreads, numThreads);
 	dim3 gridSize(numBlocks, numBlocks);
 	calculate_vector_addition_kernel<<<gridSize, blockSize>>>(
 		alpha1,
 		alpha2,
-		phi1->u_d,
-		phi2->u_d,
-		result->u_d,
+		phi1.u_d,
+		phi2.u_d,
+		result.u_d,
 		N,
 		Nb
 	);
@@ -131,21 +130,21 @@ void calculate_vector_addition_device(real_t alpha1, real_t alpha2, Field *phi1,
 }
 
 // ===================== MATRIX/RESIDUAL DEVICE FUNCTIONS =====================
-void calculate_matrix_vector_device(Field *phi, Operator *op, Field *result, int numThreads, int numBlocks)
+void calculate_matrix_vector_device(Field<real_t> &phi, Operator &op, Field<real_t> &result, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-	int N = op->N;
-	int Nb = op->Nb;
+	int N = op.N;
+	int Nb = op.Nb;
 	dim3 blockSize(numThreads, numThreads);
 	dim3 gridSize(numBlocks, numBlocks);
 	calculate_matrix_vector_kernel<<<gridSize, blockSize>>>(
-		phi->u_d,
-		op->CoE_d,
-		op->CoW_d,
-		op->CoN_d,
-		op->CoS_d,
-		op->CoP_d,
-		result->u_d,
+		phi.u_d,
+		op.CoE_d,
+		op.CoW_d,
+		op.CoN_d,
+		op.CoS_d,
+		op.CoP_d,
+		result.u_d,
 		N,
 		Nb
 	);
@@ -153,11 +152,11 @@ void calculate_matrix_vector_device(Field *phi, Operator *op, Field *result, int
 #endif
 }
 
-void calculate_residual_norm_device(Field *u, Field *rhs, Operator *op, Field *result, real_t* norm, int numThreads, int numBlocks)
+void calculate_residual_norm_device(Field<real_t> &u, Field<real_t> &rhs, Operator &op, Field<real_t> &result, real_t &norm, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-  int N = op->N;
-  int Nb = op->Nb;
+  int N = op.N;
+  int Nb = op.Nb;
   real_t *d_norm;
   cudaMalloc((void**)&d_norm, sizeof(real_t));
   real_t zero = ZERO;
@@ -165,49 +164,64 @@ void calculate_residual_norm_device(Field *u, Field *rhs, Operator *op, Field *r
   dim3 blockSize(numThreads, numThreads);
   dim3 gridSize(numBlocks, numBlocks);
   calculate_residual_norm_kernel<<<gridSize, blockSize>>>(
-	  u->u_d, rhs->u_d, op->CoE_d, op->CoW_d, op->CoN_d, op->CoS_d, op->CoP_d, result->u_d, d_norm, N, Nb);
+	  u.u_d, rhs.u_d, op.CoE_d, op.CoW_d, op.CoN_d, op.CoS_d, op.CoP_d, result.u_d, d_norm, N, Nb);
   cudaDeviceSynchronize();
   real_t host_norm;
   cudaMemcpy(&host_norm, d_norm, sizeof(real_t), cudaMemcpyDeviceToHost);
   cudaFree(d_norm);
-  *norm = host_norm / (N * N);
+  norm = host_norm / (N * N);
 #endif
 }
 
-void calculate_residual_device(Field *u, Field *rhs, Operator *op, Field *result, int numThreads, int numBlocks)
+void calculate_residual_device(Field<real_t> &u, Field<real_t> &rhs, Operator &op, Field<real_t> &result, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-	int N = op->N;
-	int Nb = op->Nb;
+	int N = op.N;
+	int Nb = op.Nb;
 	dim3 blockSize(numThreads, numThreads);
 	dim3 gridSize(numBlocks, numBlocks);
 	calculate_residual_kernel<<<gridSize, blockSize>>>(
-		u->u_d, rhs->u_d,
-		op->CoE_d, op->CoW_d, op->CoN_d, op->CoS_d, op->CoP_d,
-		result->u_d, N, Nb
+		u.u_d, rhs.u_d,
+		op.CoE_d, op.CoW_d, op.CoN_d, op.CoS_d, op.CoP_d,
+		result.u_d, N, Nb
 	);
 	cudaDeviceSynchronize();
 #endif
 }
 
 // ===================== BOUNDARY CONDITION DEVICE FUNCTIONS =====================
-void calculate_boundary_values_device(Field *phi, int bc_east, int bc_west, int bc_north, int bc_south, real_t valbc_east, real_t valbc_west, real_t valbc_north, real_t valbc_south, int numThreads)
+void calculate_boundary_values_device(Field<real_t> &phi, int bc_east, int bc_west, int bc_north, int bc_south, real_t valbc_east, real_t valbc_west, real_t valbc_north, real_t valbc_south, int numThreads)
 {
 #ifdef USE_CUDA
-  int N = phi->N;
-  int Nb = phi->Nb;
+  int N = phi.N;
+  int Nb = phi.Nb;
   int numBlocks = (N + numThreads - 1) / numThreads;
   calculate_boundary_values_east_kernel<<<numBlocks, numThreads>>>(
-	  phi->u_d, N, Nb, bc_east, valbc_east);
-  cudaDeviceSynchronize();
+	  phi.u_d, N, Nb, bc_east, valbc_east);
   calculate_boundary_values_west_kernel<<<numBlocks, numThreads>>>(
-	  phi->u_d, N, Nb, bc_west, valbc_west);
-  cudaDeviceSynchronize();
+	  phi.u_d, N, Nb, bc_west, valbc_west);
   calculate_boundary_values_north_kernel<<<numBlocks, numThreads>>>(
-	  phi->u_d, N, Nb, bc_north, valbc_north);
-  cudaDeviceSynchronize();
+	  phi.u_d, N, Nb, bc_north, valbc_north);
   calculate_boundary_values_south_kernel<<<numBlocks, numThreads>>>(
-	  phi->u_d, N, Nb, bc_south, valbc_south);
+	  phi.u_d, N, Nb, bc_south, valbc_south);
+  cudaDeviceSynchronize();
+#endif
+}
+
+void calculate_boundary_values_device(Field<real_t> &phi, Solver &s, int numThreads)
+{
+#ifdef USE_CUDA
+  int N = phi.N;
+  int Nb = phi.Nb;
+  int numBlocks = (N + numThreads - 1) / numThreads;
+  calculate_boundary_values_east_kernel<<<numBlocks, numThreads>>>(
+	  phi.u_d, N, Nb, s.bc_east, s.valbc_east);
+  calculate_boundary_values_west_kernel<<<numBlocks, numThreads>>>(
+	  phi.u_d, N, Nb, s.bc_west, s.valbc_west);
+  calculate_boundary_values_north_kernel<<<numBlocks, numThreads>>>(
+	  phi.u_d, N, Nb, s.bc_north, s.valbc_north);
+  calculate_boundary_values_south_kernel<<<numBlocks, numThreads>>>(
+	  phi.u_d, N, Nb, s.bc_south, s.valbc_south);
   cudaDeviceSynchronize();
 #endif
 }
