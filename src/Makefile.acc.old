@@ -1,0 +1,127 @@
+# Compiler settings
+NVCC = nvc++
+CXX = nvc++
+CUDA_FLAGS = -cuda -gpu=cc89 -O3 -std=c++14
+CXX_FLAGS = -O3 -std=c++14
+ACC_FLAGS = -acc=gpu -Minfo=accel
+
+# Use double precision by default
+PRECISION = -DUSE_DOUBLE -DUSE_ACC
+
+# Directories
+CALC_DIR = CALCULATORS
+COEF_DIR = COEFFICIENTS
+INC_DIR = INCLUDE
+IO_DIR = INPUTOUTPUT
+MEM_DIR = MEMMANAGE
+SOLVER_DIR = SOLVERS
+
+# Include paths
+INCLUDES = -I$(INC_DIR) -I$(CALC_DIR) -I$(COEF_DIR) -I$(IO_DIR) -I$(MEM_DIR) -I$(SOLVER_DIR)
+
+# Source files
+CUDA_SOURCES = $(CALC_DIR)/calculate_boundary_values.cu \
+               $(CALC_DIR)/calculate_dot_product.cu \
+               $(CALC_DIR)/calculate_matrix_vector.cu \
+               $(CALC_DIR)/calculate_opinv_dot_product.cu \
+               $(CALC_DIR)/calculate_residual.cu \
+               $(CALC_DIR)/calculate_residual_norm.cu \
+               $(CALC_DIR)/calculate_vector_addition.cu \
+               $(CALC_DIR)/calculate_vector_linear_combination.cu \
+               $(CALC_DIR)/calculate_vector_product.cu \
+               $(CALC_DIR)/calculate_vector_scalar_addition.cu \
+               $(COEF_DIR)/initializeSolver.cu \
+               $(MEM_DIR)/allocate_cuda.cu \
+               $(MEM_DIR)/create_acc.cu \
+               $(MEM_DIR)/deallocate_cuda.cu \
+               $(MEM_DIR)/delete_acc.cu \
+               $(MEM_DIR)/device_reset_cuda.cu \
+               $(MEM_DIR)/transfer_d2h_acc.cu \
+               $(MEM_DIR)/transfer_d2h_cuda.cu \
+               $(MEM_DIR)/transfer_h2d_acc.cu \
+               $(MEM_DIR)/transfer_h2d_cuda.cu \
+               $(SOLVER_DIR)/BiCGSTAB/bicgstab_step.cu \
+               $(SOLVER_DIR)/JACOBI/jacobi_step.cu
+
+CPP_SOURCES = $(CALC_DIR)/calculate_time.cpp \
+              $(IO_DIR)/read_input.cpp \
+              $(IO_DIR)/write_output.cpp \
+              $(SOLVER_DIR)/BiCGSTAB/bicgstab.cpp \
+              $(SOLVER_DIR)/JACOBI/jacobi.cpp \
+              $(SOLVER_DIR)/SRJ/SRJ.cpp \
+              $(SOLVER_DIR)/switch_solvers.cpp
+
+# Object files
+CUDA_OBJECTS = $(CUDA_SOURCES:.cu=.o)
+CPP_OBJECTS = $(CPP_SOURCES:.cpp=.o)
+
+# Targets
+MAIN_TARGET = solver
+TEST_TARGETS = test_bicgstab test_calculate test_jacobi test_SRJ
+
+# Default target
+all: $(MAIN_TARGET)
+
+# Main executable
+$(MAIN_TARGET): main.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^
+
+# Test executables
+test_bicgstab: test_bicgstab.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^
+
+test_calculate: test_calculate.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^
+
+test_jacobi: test_jacobi.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^
+
+test_SRJ: test_SRJ.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^
+
+# Compilation rules
+%.o: %.cu
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+%.o: %.cpp
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+main.o: main.cu
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+test_%.o: test_%.cu
+	$(NVCC) $(CUDA_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+# Build all tests
+tests: $(TEST_TARGETS)
+
+# Clean
+clean:
+	rm -f $(MAIN_TARGET) $(TEST_TARGETS)
+	rm -f *.o
+	rm -f $(CALC_DIR)/*.o
+	rm -f $(COEF_DIR)/*.o
+	rm -f $(IO_DIR)/*.o
+	rm -f $(MEM_DIR)/*.o
+	rm -f $(SOLVER_DIR)/*.o
+	rm -f $(SOLVER_DIR)/BiCGSTAB/*.o
+	rm -f $(SOLVER_DIR)/JACOBI/*.o
+	rm -f $(SOLVER_DIR)/SRJ/*.o
+
+# Build with single precision
+single:
+	$(MAKE) clean
+	$(MAKE) PRECISION="-DUSE_FLOAT -DUSE_ACC"
+
+# Build with double precision (default)
+double:
+	$(MAKE) clean
+	$(MAKE) PRECISION="-DUSE_DOUBLE -DUSE_ACC"
+
+# Build without OpenACC (CUDA only)
+cuda-only:
+	$(MAKE) clean
+	$(MAKE) PRECISION="-DUSE_DOUBLE" ACC_FLAGS=""
+
+# Phony targets
+.PHONY: all clean tests single double cuda-only

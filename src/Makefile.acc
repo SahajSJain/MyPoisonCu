@@ -1,0 +1,196 @@
+NVCC = nvcc
+CXX = nvc++
+CUDA_FLAGS = -arch=sm_89 -O3 -std=c++14 -ccbin=$(CXX)
+CXX_FLAGS = -gpu=cc89 -O3 -std=c++14 -traceback
+ACC_FLAGS = -acc=gpu -Minfo=accel
+
+# Use double precision by default
+PRECISION = -DUSE_DOUBLE -DUSE_ACC
+
+# Directories
+CALC_DIR = CALCULATORS
+COEF_DIR = COEFFICIENTS
+INC_DIR = INCLUDE
+IO_DIR = INPUTOUTPUT
+MEM_DIR = MEMMANAGE
+SOLVER_DIR = SOLVERS
+
+# Object directories
+OBJ_DIR = .obj
+CALC_OBJ_DIR = $(CALC_DIR)/$(OBJ_DIR)
+COEF_OBJ_DIR = $(COEF_DIR)/$(OBJ_DIR)
+IO_OBJ_DIR = $(IO_DIR)/$(OBJ_DIR)
+MEM_OBJ_DIR = $(MEM_DIR)/$(OBJ_DIR)
+SOLVER_OBJ_DIR = $(SOLVER_DIR)/$(OBJ_DIR)
+SOLVER_BICGSTAB_OBJ_DIR = $(SOLVER_DIR)/BiCGSTAB/$(OBJ_DIR)
+SOLVER_JACOBI_OBJ_DIR = $(SOLVER_DIR)/JACOBI/$(OBJ_DIR)
+SOLVER_SRJ_OBJ_DIR = $(SOLVER_DIR)/SRJ/$(OBJ_DIR)
+
+# Include paths
+INCLUDES = -I$(INC_DIR) -I$(CALC_DIR) -I$(COEF_DIR) -I$(IO_DIR) -I$(MEM_DIR) -I$(SOLVER_DIR)
+
+# Source files - CUDA
+CUDA_SOURCES = $(CALC_DIR)/calculate_boundary_values.cu \
+               $(CALC_DIR)/calculate_dot_product.cu \
+               $(CALC_DIR)/calculate_matrix_vector.cu \
+               $(CALC_DIR)/calculate_opinv_dot_product.cu \
+               $(CALC_DIR)/calculate_residual.cu \
+               $(CALC_DIR)/calculate_residual_norm.cu \
+               $(CALC_DIR)/calculate_vector_addition.cu \
+               $(CALC_DIR)/calculate_vector_linear_combination.cu \
+               $(CALC_DIR)/calculate_vector_product.cu \
+               $(CALC_DIR)/calculate_vector_scalar_addition.cu \
+               $(MEM_DIR)/allocate_cuda.cu \
+               $(MEM_DIR)/deallocate_cuda.cu \
+               $(MEM_DIR)/device_reset_cuda.cu \
+               $(MEM_DIR)/transfer_d2h_cuda.cu \
+               $(MEM_DIR)/transfer_h2d_cuda.cu
+
+# Source files - C++
+CPP_SOURCES = $(CALC_DIR)/calculators_host.cpp \
+              $(COEF_DIR)/initializeSolver.cpp \
+              $(IO_DIR)/read_input.cpp \
+              $(IO_DIR)/write_output.cpp \
+              $(MEM_DIR)/create_acc.cpp \
+              $(MEM_DIR)/delete_acc.cpp \
+              $(MEM_DIR)/transfer_d2h_acc.cpp \
+              $(MEM_DIR)/transfer_h2d_acc.cpp \
+              $(SOLVER_DIR)/BiCGSTAB/bicgstab.cpp \
+              $(SOLVER_DIR)/BiCGSTAB/bicgstab_step.cpp \
+              $(SOLVER_DIR)/JACOBI/jacobi.cpp \
+              $(SOLVER_DIR)/JACOBI/jacobi_step.cpp \
+              $(SOLVER_DIR)/SRJ/SRJ.cpp \
+              $(SOLVER_DIR)/switch_solvers.cpp
+
+# Object files
+CUDA_OBJECTS = $(CALC_OBJ_DIR)/calculate_boundary_values.o \
+               $(CALC_OBJ_DIR)/calculate_dot_product.o \
+               $(CALC_OBJ_DIR)/calculate_matrix_vector.o \
+               $(CALC_OBJ_DIR)/calculate_opinv_dot_product.o \
+               $(CALC_OBJ_DIR)/calculate_residual.o \
+               $(CALC_OBJ_DIR)/calculate_residual_norm.o \
+               $(CALC_OBJ_DIR)/calculate_vector_addition.o \
+               $(CALC_OBJ_DIR)/calculate_vector_linear_combination.o \
+               $(CALC_OBJ_DIR)/calculate_vector_product.o \
+               $(CALC_OBJ_DIR)/calculate_vector_scalar_addition.o \
+               $(MEM_OBJ_DIR)/allocate_cuda.o \
+               $(MEM_OBJ_DIR)/deallocate_cuda.o \
+               $(MEM_OBJ_DIR)/device_reset_cuda.o \
+               $(MEM_OBJ_DIR)/transfer_d2h_cuda.o \
+               $(MEM_OBJ_DIR)/transfer_h2d_cuda.o
+
+CPP_OBJECTS = $(CALC_OBJ_DIR)/calculators_host.o \
+              $(COEF_OBJ_DIR)/initializeSolver.o \
+              $(IO_OBJ_DIR)/read_input.o \
+              $(IO_OBJ_DIR)/write_output.o \
+              $(MEM_OBJ_DIR)/create_acc.o \
+              $(MEM_OBJ_DIR)/delete_acc.o \
+              $(MEM_OBJ_DIR)/transfer_d2h_acc.o \
+              $(MEM_OBJ_DIR)/transfer_h2d_acc.o \
+              $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab.o \
+              $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab_step.o \
+              $(SOLVER_JACOBI_OBJ_DIR)/jacobi.o \
+              $(SOLVER_JACOBI_OBJ_DIR)/jacobi_step.o \
+              $(SOLVER_SRJ_OBJ_DIR)/SRJ.o \
+              $(SOLVER_OBJ_DIR)/switch_solvers.o
+
+# Targets
+MAIN_TARGET = MyPoisonCu.acc
+TEST_TARGETS = test_bicgstab test_calculate test_jacobi test_SRJ
+
+# Create object directories
+OBJ_DIRS = $(OBJ_DIR) $(CALC_OBJ_DIR) $(COEF_OBJ_DIR) $(IO_OBJ_DIR) $(MEM_OBJ_DIR) \
+           $(SOLVER_OBJ_DIR) $(SOLVER_BICGSTAB_OBJ_DIR) $(SOLVER_JACOBI_OBJ_DIR) $(SOLVER_SRJ_OBJ_DIR)
+
+# Default target
+all: $(OBJ_DIRS) $(MAIN_TARGET)
+
+# Create directories
+$(OBJ_DIRS):
+	@mkdir -p $@
+
+# Main executable
+$(MAIN_TARGET): $(OBJ_DIR)/main.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^ -lcudart
+
+# Test executables
+test_bicgstab: $(OBJ_DIR)/test_bicgstab.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^ -lcudart
+
+test_calculate: $(OBJ_DIR)/test_calculate.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^ -lcudart
+
+test_jacobi: $(OBJ_DIR)/test_jacobi.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^ -lcudart
+
+test_SRJ: $(OBJ_DIR)/test_SRJ.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) -o $@ $^ -lcudart
+
+# Compilation rules for CUDA files
+$(CALC_OBJ_DIR)/%.o: $(CALC_DIR)/%.cu | $(CALC_OBJ_DIR)
+	$(NVCC) $(CUDA_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+# Note: MEMMANAGE .cu rule removed to avoid conflict with C++-based implementation
+
+# Compilation rules for C++ files
+$(CALC_OBJ_DIR)/%.o: $(CALC_DIR)/%.cpp | $(CALC_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(COEF_OBJ_DIR)/%.o: $(COEF_DIR)/%.cpp | $(COEF_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(IO_OBJ_DIR)/%.o: $(IO_DIR)/%.cpp | $(IO_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(MEM_OBJ_DIR)/%.o: $(MEM_DIR)/%.cpp | $(MEM_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_BICGSTAB_OBJ_DIR)/%.o: $(SOLVER_DIR)/BiCGSTAB/%.cpp | $(SOLVER_BICGSTAB_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_JACOBI_OBJ_DIR)/%.o: $(SOLVER_DIR)/JACOBI/%.cpp | $(SOLVER_JACOBI_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_SRJ_OBJ_DIR)/%.o: $(SOLVER_DIR)/SRJ/%.cpp | $(SOLVER_SRJ_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_OBJ_DIR)/%.o: $(SOLVER_DIR)/%.cpp | $(SOLVER_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+# Main and test object files
+$(OBJ_DIR)/main.o: main.cpp | $(OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(OBJ_DIR)/test_%.o: test_%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(ACC_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(MEM_OBJ_DIR)/%.o: $(MEM_DIR)/%.cu | $(MEM_OBJ_DIR)
+	$(NVCC) $(CUDA_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+# Build all tests
+tests: $(TEST_TARGETS)
+
+# Clean
+clean:
+	rm -f $(MAIN_TARGET) $(TEST_TARGETS)
+	rm -rf $(OBJ_DIR)
+	rm -rf $(CALC_OBJ_DIR)
+	rm -rf $(COEF_OBJ_DIR)
+	rm -rf $(IO_OBJ_DIR)
+	rm -rf $(MEM_OBJ_DIR)
+	rm -rf $(SOLVER_OBJ_DIR)
+	rm -rf $(SOLVER_BICGSTAB_OBJ_DIR)
+	rm -rf $(SOLVER_JACOBI_OBJ_DIR)
+	rm -rf $(SOLVER_SRJ_OBJ_DIR)
+
+# Build with double precision (default)
+double:
+	$(MAKE) clean
+	$(MAKE) PRECISION="-DUSE_DOUBLE -DUSE_ACC"
+
+# Build with single precision
+single:
+	$(MAKE) clean
+	$(MAKE) PRECISION="-DUSE_ACC"
+
+# Phony targets
+.PHONY: all clean tests single double

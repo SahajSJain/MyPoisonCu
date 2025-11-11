@@ -1,0 +1,116 @@
+===============================================================================
+                    INPUT FILE FOR MyPoisonousCult
+===============================================================================
+-------------------- GRID CONFIGURATION ------------------------------------
+N
+128
+Lx_s  Lx_e  Ly_s  Ly_e
+-1.0  1.0   -1.0  1.0
+-------------------- SOLVER CONFIGURATION ----------------------------------
+METHOD      ErrorCheck  omega
+1           1           0.99
+USE_HOST	USE_DEVICE
+0		1
+maxiter     tolerance   inneriter
+500      1.0e-10         10
+-------------------- FIELD INITIALIZATION ----------------------------------
+INITIALIZATION_TYPE
+2
+RHS_TYPE
+2
+-------------------- BOUNDARY CONDITIONS -----------------------------------
+bc_east     bcd_east    valbc_east
+1           1           0.0
+bc_west     bcd_west    valbc_west
+1           1           0.0
+bc_north    bcd_north   valbc_north
+1           1           0.0
+bc_south    bcd_south   valbc_south
+1           1           0.0
+
+===============================================================================
+                            PARAMETER DESCRIPTIONS
+===============================================================================
+
+GRID CONFIGURATION:
+  N                   : Number of interior grid points in each direction 
+                        (excluding boundaries)
+                        Recommended: power of 2 for multigrid efficiency 
+                        (8, 16, 32, 64, etc.)
+  
+  Lx_s, Lx_e         : Domain x-bounds (start, end)
+  Ly_s, Ly_e         : Domain y-bounds (start, end)
+                        Example: -1.0 1.0 -1.0 1.0 creates [-1,1] x [-1,1]
+
+SOLVER CONFIGURATION:
+  METHOD              : Solution method
+                        1 = Jacobi
+                        2 = SRJ (Successive Relaxation Jacobi)
+                        3 = BiCGSTAB (Biconjugate Gradient Stabilized)
+                        4 = Multigrid (num_levels auto-calculated from N)
+  
+  ErrorCheck          : Error checking flag
+                        0 = No error check
+                        1 = Check against manufactured solution
+  
+  omega               : Relaxation parameter for iterative solvers
+                        Typical range: 0.5 to 1.9
+                        omega = 1.0 is standard Jacobi
+                        omega < 1.0 is under-relaxation (more stable)
+                        omega > 1.0 is over-relaxation (faster convergence if stable)
+                        Recommended: 0.8 for general problems
+  
+  maxiter             : Maximum number of iterations for outer loop
+                        Default: 1000
+                        Solver stops when either maxiter or tolerance is reached
+  
+  tolerance           : Convergence tolerance for residual norm
+                        Default: 1.0e-6
+                        Solver stops when ||residual|| < tolerance
+  
+  inneriter           : Number of inner iterations (smoothing steps)
+                        Used by: Multigrid (pre/post smoothing)
+                        Default: 10
+                        Higher values = smoother convergence but slower per iteration
+  
+FIELD INITIALIZATION:
+  INITIALIZATION_TYPE : Initial guess for solution field phi
+                        0 = Zero initialization (most common)
+                        1 = Manufactured solution (for testing/debugging)
+                        2 = Random values between -1 and 1
+  
+  RHS_TYPE            : Right-hand side (source term) configuration
+                        0 = Zero RHS (homogeneous problem)
+                        1 = Manufactured solution: -2*pi^2*sin(pi*x)*sin(pi*y)
+                        2 = Random values between -1 and 1
+
+BOUNDARY CONDITIONS:
+  Format for each boundary: bc_type  bcd_specifier  value
+  
+  bc_type             : Boundary condition type
+                        0 = Dirichlet (fixed value)
+                        1 = Neumann (zero gradient)
+  
+  bcd_specifier       : Dirichlet BC value specifier (only for bc_type=0)
+                        1 = User-specified value (from 'value' column) [DEFAULT]
+                        2 = Manufactured solution: sin(pi*x)*sin(pi*y)
+  
+  value               : User-specified BC value (only used if bcd_specifier=1)
+  
+  Boundaries:
+    bc_east/west      : East (right, i=N) / West (left, i=1) boundaries
+    bc_north/south    : North (top, j=N) / South (bottom, j=1) boundaries
+
+NOTES:
+  - All four boundaries with Dirichlet BC (bc_type=0, bcd_specifier=1) with 
+    valbc=0 is the most common configuration for Poisson problems
+  - Pure Neumann (all boundaries with bc_type=1) requires compatibility 
+    condition (integral of RHS = 0) and solution is determined up to a constant
+  - For testing convergence, use RHS_TYPE=1 with all boundaries set to 
+    bcd_specifier=2 (manufactured solution)
+  - Multigrid: number of levels is automatically calculated based on N
+    (typically num_levels = log2(N) - 1 to ensure coarsest grid has >= 4 points)
+===============================================================================
+
+
+
