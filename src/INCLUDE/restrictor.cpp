@@ -1,4 +1,6 @@
 #include "structs.cuh"
+#include <cstdio> // for fprintf, stderr
+#include <cstdlib> // for exit
 
 Restrictor::Restrictor(int N, int Nc) : N(N), Nc(Nc), Nb(N + 2), Ncb(Nc + 2), Ntotal((Nc + 2) * (Nc + 2)) {
     // Allocate host memory (initialized to 0)

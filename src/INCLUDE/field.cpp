@@ -2,6 +2,9 @@
 #include "structs.cuh"
 #include <algorithm>
 #include <cstring>
+#include <cstdio> // for fprintf, stderr
+#include <cstdlib> // for exit
+
 
 template<typename T>
 Field<T>::Field(int N) : N(N), Nb(N + 2), Ntotal((N + 2) * (N + 2)) {
@@ -125,13 +128,6 @@ void Field<T>::fill(T value) {
     for (int i = 0; i < this->Ntotal; i++) {
         this->u[i] = value;
     }
-    
-    // Fill device memory based on backend
-    #ifdef USE_CUDA
-    fillDevice_cuda(value);
-    #elif defined(USE_ACC)
-    fillDevice_acc(value);
-    #endif
 }
 
 // OpenACC implementations
@@ -211,9 +207,4 @@ bool Field<T>::isOnDevice() const {
 }
 #endif
 
-// Explicit instantiations
-template class Field<real_t>;
-template class Field<int>;
-template class Field<bool>;
-template class Field<float>;
-template class Field<double>;
+

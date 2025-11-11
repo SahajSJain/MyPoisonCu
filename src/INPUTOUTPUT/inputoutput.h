@@ -10,11 +10,12 @@ extern "C" {
 
 // Read input parameters from specified file
 // Returns 0 on success, -1 on failure
-int readInput(Setup* setup, const char* filename);
+int readInput(Setup* setup, const char* filename) ;
 
 // Write Tecplot-format output file
 // Returns 0 on success, non-zero on failure
-int writeTecplotOutput(Setup* setup, Solver* Sol, const char* filename);
+int writeTecplotOutput(Setup *setup, Solver &Sol, const char *filename);
+
 
 #ifdef __cplusplus
 }

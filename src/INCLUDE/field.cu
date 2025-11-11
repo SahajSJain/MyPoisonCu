@@ -1,5 +1,8 @@
 // INCLUDE/field.cu
+
 #include "structs.cuh"
+#include <cstdio> // for fprintf, stderr
+#include <cstdlib> // for exit
 
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
@@ -50,17 +53,6 @@ bool Field<T>::isOnDevice() const {
     return (this->u_d != nullptr);
 }
 
-template<typename T>
-void Field<T>::fillDevice_cuda(T value) {
-    int blockSize = 256;
-    int numBlocks = (this->Ntotal + blockSize - 1) / blockSize;
-    fillKernel<<<numBlocks, blockSize>>>(this->u_d, value, this->Ntotal);
-}
 
-// Explicit instantiations
-template class Field<real_t>;
-template class Field<int>;
-template class Field<bool>;
-template class Field<float>;
-template class Field<double>;
 #endif
+

@@ -1,4 +1,6 @@
 #include "structs.cuh"
+#include <cstdio> // for fprintf, stderr
+#include <cstdlib> // for exit
 
 #ifdef USE_CUDA
 #include <cuda_runtime.h>

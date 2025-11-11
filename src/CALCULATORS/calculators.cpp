@@ -3,12 +3,22 @@
 
 #include "calculators.cuh"
 #include "../INCLUDE/structs.cuh"
+#include <chrono>
+// basic structure: 
+//  #ifdef USE_CUDA
+//      call device version
+//  #else
+//      call host version
+//  #endif
+// this means CUDA+X will result in device versions called.
 
 // Timer function - returns current time in seconds
 double timer() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec * 1e-9;
+    using namespace std::chrono;
+    static auto start = steady_clock::now();
+    auto now = steady_clock::now();
+    duration<double> elapsed = now - start;
+    return elapsed.count();
 }
 
 // ===================== RESIDUAL OPERATIONS =====================

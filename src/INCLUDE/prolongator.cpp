@@ -1,12 +1,10 @@
 #include "structs.cuh"
+#include <cstdio> // for fprintf, stderr
+#include <cstdlib> // for exit
 
-Prolongator::Prolongator(int N, int Nf) {
-    this->Nf = Nf;
-    this->N = N;
-    this->Nfb = Nf + 2; // including boundaries
-    this->Nb = N + 2; // including boundaries
-    this->Ntotal = this->Nfb * this->Nfb; // total size of prolongation matrix 
-    
+Prolongator::Prolongator(int N, int Nf)
+    : Nf(Nf), N(N), Nfb(Nf + 2), Nb(N + 2), Ntotal((Nf + 2) * (Nf + 2))
+{
     // Allocate host memory (initialized to 0)
     this->P = (real_t*)calloc(this->Ntotal, sizeof(real_t));
     if (!this->P) {

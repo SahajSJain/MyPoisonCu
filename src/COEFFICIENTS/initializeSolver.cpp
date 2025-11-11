@@ -38,6 +38,7 @@ void initializeSolver(Solver *Sol, Setup *setup)
 {
   int N = Sol->N;
   int Nb = Sol->Nb;
+  int Ntotal = Sol->Ntotal;
   real_t dx = Sol->dx;
   real_t dy = Sol->dy;
   real_t idx2 = 1.0f / (dx * dx);
@@ -75,9 +76,15 @@ void initializeSolver(Solver *Sol, Setup *setup)
 
   // Upload all data to device at the beginning
   Sol->upload();
+#ifdef USE_ACC
+#pragma acc wait
+#endif
 
   // Setup blanking field and alpha values
-  _ACC_(acc data present_or_copy(Sol->color.u [0:Nb * Nb]))
+  auto color_ptr = Sol->color.u;
+  int Ntotal_local = Ntotal;
+
+  _ACC_(acc data present(color_ptr [0:Ntotal_local]))
   {
     _OMP_(omp parallel for collapse(2) private(i, j, p))
     _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p))
@@ -88,18 +95,23 @@ void initializeSolver(Solver *Sol, Setup *setup)
         p = CENTER;
         if (i == 0 || i == Nb - 1 || j == 0 || j == Nb - 1)
         {
-          Sol->color.u[p] = false;
+          color_ptr[p] = false;
         }
         else
         {
-          Sol->color.u[p] = true;
+          color_ptr[p] = true;
         }
       }
     }
   }
 
   // Set alpha values based on color field
-  _ACC_(acc data present_or_copy(Sol->color.u [0:Nb * Nb], Sol->alpha_E.u [0:Nb * Nb], Sol->alpha_W.u [0:Nb * Nb], Sol->alpha_N.u [0:Nb * Nb], Sol->alpha_S.u [0:Nb * Nb]))
+  auto alpha_E_ptr = Sol->alpha_E.u;
+  auto alpha_W_ptr = Sol->alpha_W.u;
+  auto alpha_N_ptr = Sol->alpha_N.u;
+  auto alpha_S_ptr = Sol->alpha_S.u;
+
+  _ACC_(acc data present(color_ptr [0:Ntotal], alpha_E_ptr [0:Ntotal], alpha_W_ptr [0:Ntotal], alpha_N_ptr [0:Ntotal], alpha_S_ptr [0:Ntotal]))
   {
     _OMP_(omp parallel for collapse(2) private(i, j, p))
     _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p))
@@ -108,18 +120,22 @@ void initializeSolver(Solver *Sol, Setup *setup)
       for (j = 1; j <= N; j++)
       {
         p = CENTER;
-        Sol->alpha_E.u[p] = Sol->color.u[EAST] == Sol->color.u[p];
-        Sol->alpha_W.u[p] = Sol->color.u[WEST] == Sol->color.u[p];
-        Sol->alpha_N.u[p] = Sol->color.u[NORTH] == Sol->color.u[p];
-        Sol->alpha_S.u[p] = Sol->color.u[SOUTH] == Sol->color.u[p];
+        alpha_E_ptr[p] = color_ptr[EAST] == color_ptr[p];
+        alpha_W_ptr[p] = color_ptr[WEST] == color_ptr[p];
+        alpha_N_ptr[p] = color_ptr[NORTH] == color_ptr[p];
+        alpha_S_ptr[p] = color_ptr[SOUTH] == color_ptr[p];
       }
     }
   }
 
   // Setup RHS
+  auto rhs_ptr = Sol->rhs.u;
+  auto x_c_ptr = Sol->x_c;
+  auto y_c_ptr = Sol->y_c;
+
   if (RHS_TYPE == RHS_MANUFACTURED)
   {
-    _ACC_(acc data present_or_copy(Sol->x_c [0:Nb], Sol->y_c [0:Nb], Sol->color.u [0:Nb * Nb], Sol->rhs.u [0:Nb * Nb]))
+    _ACC_(acc data present(x_c_ptr [0:Nb], y_c_ptr [0:Nb], color_ptr [0:Ntotal], rhs_ptr [0:Ntotal]))
     {
       _OMP_(omp parallel for collapse(2) private(i, j, p, x_local, y_local))
       _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p, x_local, y_local))
@@ -128,10 +144,10 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (j = 0; j < Nb; j++)
         {
           p = CENTER;
-          x_local = Sol->x_c[i];
-          y_local = Sol->y_c[j];
-          Sol->rhs.u[p] = rhsfieldcalc(x_local, y_local);
-          Sol->rhs.u[p] = Sol->color.u[p] * Sol->rhs.u[p];
+          x_local = x_c_ptr[i];
+          y_local = y_c_ptr[j];
+          rhs_ptr[p] = rhsfieldcalc(x_local, y_local);
+          rhs_ptr[p] = color_ptr[p] * rhs_ptr[p];
         }
       }
     }
@@ -140,7 +156,7 @@ void initializeSolver(Solver *Sol, Setup *setup)
   {
 // Random RHS - do on host only
 #ifdef USE_ACC
-    _ACC_(acc update host(Sol->rhs.u [0:Nb * Nb]))
+    _ACC_(acc update host(rhs_ptr [0:Ntotal], color_ptr [0:Ntotal]))
 #endif
     {
       _OMP_(omp parallel for collapse(2) private(i, j, p))
@@ -149,19 +165,19 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (j = 0; j < Nb; j++)
         {
           p = CENTER;
-          Sol->rhs.u[p] = generate_random_range(-ONE, ONE);
-          Sol->rhs.u[p] = Sol->color.u[p] * Sol->rhs.u[p];
+          rhs_ptr[p] = generate_random_range(-ONE, ONE);
+          rhs_ptr[p] = color_ptr[p] * rhs_ptr[p];
         }
       }
     }
 #ifdef USE_ACC
-    _ACC_(acc update device(Sol->rhs.u [0:Nb * Nb]))
+    _ACC_(acc update device(rhs_ptr [0:Ntotal]))
 #endif
   }
   else
   {
     // RHS_ZERO
-    _ACC_(acc data present_or_copy(Sol->rhs.u [0:Nb * Nb]))
+    _ACC_(acc data present(rhs_ptr [0:Ntotal]))
     {
       _OMP_(omp parallel for collapse(2) private(i, j, p))
       _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p))
@@ -170,16 +186,18 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (j = 0; j < Nb; j++)
         {
           p = CENTER;
-          Sol->rhs.u[p] = 0.0f;
+          rhs_ptr[p] = 0.0f;
         }
       }
     }
   }
 
   // Initialize potential field
+  auto phi_ptr = Sol->phi.u;
+
   if (INIT_TYPE == INIT_MANUFACTURED)
   {
-    _ACC_(acc data present_or_copy(Sol->x_c [0:Nb], Sol->y_c [0:Nb], Sol->color.u [0:Nb * Nb], Sol->phi.u [0:Nb * Nb]))
+    _ACC_(acc data present(x_c_ptr [0:Nb], y_c_ptr [0:Nb], color_ptr [0:Ntotal], phi_ptr [0:Ntotal]))
     {
       _OMP_(omp parallel for collapse(2) private(i, j, p, x_local, y_local))
       _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p, x_local, y_local))
@@ -188,10 +206,10 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (j = 0; j < Nb; j++)
         {
           p = CENTER;
-          x_local = Sol->x_c[i];
-          y_local = Sol->y_c[j];
-          Sol->phi.u[p] = solfieldcalc(x_local, y_local);
-          Sol->phi.u[p] = Sol->color.u[p] * Sol->phi.u[p];
+          x_local = x_c_ptr[i];
+          y_local = y_c_ptr[j];
+          phi_ptr[p] = solfieldcalc(x_local, y_local);
+          phi_ptr[p] = color_ptr[p] * phi_ptr[p];
         }
       }
     }
@@ -200,7 +218,7 @@ void initializeSolver(Solver *Sol, Setup *setup)
   {
 // Random initial guess - do on host only
 #ifdef USE_ACC
-    _ACC_(acc update host(Sol->phi.u [0:Nb * Nb]))
+    _ACC_(acc update host(phi_ptr [0:Ntotal], color_ptr [0:Ntotal]))
 #endif
     {
       _OMP_(omp parallel for collapse(2) private(i, j, p))
@@ -209,19 +227,19 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (j = 0; j < Nb; j++)
         {
           p = CENTER;
-          Sol->phi.u[p] = generate_random_range(-ONE, ONE);
-          Sol->phi.u[p] = Sol->color.u[p] * Sol->phi.u[p];
+          phi_ptr[p] = generate_random_range(-ONE, ONE);
+          phi_ptr[p] = color_ptr[p] * phi_ptr[p];
         }
       }
     }
 #ifdef USE_ACC
-    _ACC_(acc update device(Sol->phi.u [0:Nb * Nb]))
+    _ACC_(acc update device(phi_ptr [0:Ntotal]))
 #endif
   }
   else
   {
     // INIT_ZERO
-    _ACC_(acc data present_or_copy(Sol->phi.u [0:Nb * Nb]))
+    _ACC_(acc data present(phi_ptr [0:Ntotal]))
     {
       _OMP_(omp parallel for collapse(2) private(i, j, p))
       _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p))
@@ -230,14 +248,20 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (j = 0; j < Nb; j++)
         {
           p = CENTER;
-          Sol->phi.u[p] = 0.0f;
+          phi_ptr[p] = 0.0f;
         }
       }
     }
   }
 
   // Setup operator coefficients
-  _ACC_(acc data present_or_copy(Sol->A.CoE [0:Nb * Nb], Sol->A.CoW [0:Nb * Nb], Sol->A.CoN [0:Nb * Nb], Sol->A.CoS [0:Nb * Nb], Sol->A.CoP [0:Nb * Nb]))
+  auto CoE_ptr = Sol->A.CoE;
+  auto CoW_ptr = Sol->A.CoW;
+  auto CoN_ptr = Sol->A.CoN;
+  auto CoS_ptr = Sol->A.CoS;
+  auto CoP_ptr = Sol->A.CoP;
+
+  _ACC_(acc data present(CoE_ptr [0:Ntotal], CoW_ptr [0:Ntotal], CoN_ptr [0:Ntotal], CoS_ptr [0:Ntotal], CoP_ptr [0:Ntotal]))
   {
     _OMP_(omp parallel for collapse(2) private(i, j, p))
     _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p))
@@ -246,142 +270,160 @@ void initializeSolver(Solver *Sol, Setup *setup)
       for (j = 1; j <= N; j++)
       {
         p = CENTER;
-        Sol->A.CoE[p] = idx2;
-        Sol->A.CoW[p] = idx2;
-        Sol->A.CoN[p] = idy2;
-        Sol->A.CoS[p] = idy2;
-        Sol->A.CoP[p] = -(2.0f * (idx2 + idy2));
+        CoE_ptr[p] = idx2;
+        CoW_ptr[p] = idx2;
+        CoN_ptr[p] = idy2;
+        CoS_ptr[p] = idy2;
+        CoP_ptr[p] = -(2.0f * (idx2 + idy2));
       }
     }
   }
 
   // Apply boundary conditions
+  // Apply boundary conditions
+  // Create local copies of all BC values and types
+  int bc_west_local = Sol->bc_west;
+  int bc_east_local = Sol->bc_east;
+  int bc_north_local = Sol->bc_north;
+  int bc_south_local = Sol->bc_south;
+  real_t valbc_west_local = Sol->valbc_west;
+  real_t valbc_east_local = Sol->valbc_east;
+  real_t valbc_north_local = Sol->valbc_north;
+  real_t valbc_south_local = Sol->valbc_south;
+  int level_local = Sol->level;
+  int bcd_west_local = setup->bcd_west;
+  int bcd_east_local = setup->bcd_east;
+  int bcd_north_local = setup->bcd_north;
+  int bcd_south_local = setup->bcd_south;
+
   // West BC
   i = 1;
-  _ACC_(acc data present_or_copy(Sol->x_c [0:Nb], Sol->y_c [0:Nb], Sol->A.CoW [0:Nb * Nb], Sol->A.CoP [0:Nb * Nb], Sol->rhs.u [0:Nb * Nb])
-            copyin(Sol->bc_west, Sol->valbc_west, Sol->level, setup->bcd_west))
+  _ACC_(acc data present_or_copyin(x_c_ptr [0:Nb], y_c_ptr [0:Nb])
+            present(CoW_ptr [0:Ntotal], CoP_ptr [0:Ntotal], rhs_ptr [0:Ntotal]))
   {
     _OMP_(omp parallel for private(j, p, bcvalue, x_local, y_local))
     _ACC_(acc parallel loop gang vector private(j, p, bcvalue, x_local, y_local))
     for (j = 1; j <= N; j++)
     {
       p = CENTER;
-      if (Sol->bc_west == BC_DIRICHLET)
+      if (bc_west_local == BC_DIRICHLET)
       {
-        bcvalue = Sol->valbc_west;
-        if (Sol->level == 0 && setup->bcd_west == BCD_MANUFACTURED)
+        bcvalue = valbc_west_local;
+        if (level_local == 0 && bcd_west_local == BCD_MANUFACTURED)
         {
-          x_local = Sol->x_c[i];
-          y_local = Sol->y_c[j];
+          x_local = x_c_ptr[i];
+          y_local = y_c_ptr[j];
           bcvalue = solfieldcalc(x_local, y_local);
         }
-        Sol->A.CoW[p] = 0.0f;
-        Sol->A.CoP[p] -= idx2;
-        Sol->rhs.u[p] -= 2.0 * idx2 * bcvalue;
+        CoW_ptr[p] = 0.0f;
+        CoP_ptr[p] -= idx2;
+        rhs_ptr[p] -= 2.0 * idx2 * bcvalue;
       }
-      if (Sol->bc_west == BC_NEUMANN)
+      if (bc_west_local == BC_NEUMANN)
       {
-        Sol->A.CoW[p] = 0.0f;
-        Sol->A.CoP[p] += idx2;
+        CoW_ptr[p] = 0.0f;
+        CoP_ptr[p] += idx2;
       }
     }
   }
 
   // East BC
   i = N;
-  _ACC_(acc data present_or_copy(Sol->x_c [0:Nb], Sol->y_c [0:Nb], Sol->A.CoE [0:Nb * Nb], Sol->A.CoP [0:Nb * Nb], Sol->rhs.u [0:Nb * Nb])
-            copyin(Sol->bc_east, Sol->valbc_east, Sol->level, setup->bcd_east))
+  _ACC_(acc data present_or_copyin(x_c_ptr [0:Nb], y_c_ptr [0:Nb])
+            present(CoE_ptr [0:Ntotal], CoP_ptr [0:Ntotal], rhs_ptr [0:Ntotal]))
   {
     _OMP_(omp parallel for private(j, p, bcvalue, x_local, y_local))
     _ACC_(acc parallel loop gang vector private(j, p, bcvalue, x_local, y_local))
     for (j = 1; j <= N; j++)
     {
       p = CENTER;
-      if (Sol->bc_east == BC_DIRICHLET)
+      if (bc_east_local == BC_DIRICHLET)
       {
-        bcvalue = Sol->valbc_east;
-        if (Sol->level == 0 && setup->bcd_east == BCD_MANUFACTURED)
+        bcvalue = valbc_east_local;
+        if (level_local == 0 && bcd_east_local == BCD_MANUFACTURED)
         {
-          x_local = Sol->x_c[i];
-          y_local = Sol->y_c[j];
+          x_local = x_c_ptr[i];
+          y_local = y_c_ptr[j];
           bcvalue = solfieldcalc(x_local, y_local);
         }
-        Sol->A.CoE[p] = 0.0f;
-        Sol->A.CoP[p] -= idx2;
-        Sol->rhs.u[p] -= 2.0 * idx2 * bcvalue;
+        CoE_ptr[p] = 0.0f;
+        CoP_ptr[p] -= idx2;
+        rhs_ptr[p] -= 2.0 * idx2 * bcvalue;
       }
-      if (Sol->bc_east == BC_NEUMANN)
+      if (bc_east_local == BC_NEUMANN)
       {
-        Sol->A.CoE[p] = 0.0f;
-        Sol->A.CoP[p] += idx2;
+        CoE_ptr[p] = 0.0f;
+        CoP_ptr[p] += idx2;
       }
     }
   }
 
   // South BC
   j = 1;
-  _ACC_(acc data present_or_copy(Sol->x_c [0:Nb], Sol->y_c [0:Nb], Sol->A.CoS [0:Nb * Nb], Sol->A.CoP [0:Nb * Nb], Sol->rhs.u [0:Nb * Nb])
-            copyin(Sol->bc_south, Sol->valbc_south, Sol->level, setup->bcd_south))
+  _ACC_(acc data present_or_copyin(x_c_ptr [0:Nb], y_c_ptr [0:Nb])
+            present(CoS_ptr [0:Ntotal], CoP_ptr [0:Ntotal], rhs_ptr [0:Ntotal]))
   {
     _OMP_(omp parallel for private(i, p, bcvalue, x_local, y_local))
     _ACC_(acc parallel loop gang vector private(i, p, bcvalue, x_local, y_local))
     for (i = 1; i <= N; i++)
     {
       p = CENTER;
-      if (Sol->bc_south == BC_DIRICHLET)
+      if (bc_south_local == BC_DIRICHLET)
       {
-        bcvalue = Sol->valbc_south;
-        if (Sol->level == 0 && setup->bcd_south == BCD_MANUFACTURED)
+        bcvalue = valbc_south_local;
+        if (level_local == 0 && bcd_south_local == BCD_MANUFACTURED)
         {
-          x_local = Sol->x_c[i];
-          y_local = Sol->y_c[j];
+          x_local = x_c_ptr[i];
+          y_local = y_c_ptr[j];
           bcvalue = solfieldcalc(x_local, y_local);
         }
-        Sol->A.CoS[p] = 0.0f;
-        Sol->A.CoP[p] -= idy2;
-        Sol->rhs.u[p] -= 2.0 * idy2 * bcvalue;
+        CoS_ptr[p] = 0.0f;
+        CoP_ptr[p] -= idy2;
+        rhs_ptr[p] -= 2.0 * idy2 * bcvalue;
       }
-      if (Sol->bc_south == BC_NEUMANN)
+      if (bc_south_local == BC_NEUMANN)
       {
-        Sol->A.CoS[p] = 0.0f;
-        Sol->A.CoP[p] += idy2;
+        CoS_ptr[p] = 0.0f;
+        CoP_ptr[p] += idy2;
       }
     }
   }
 
   // North BC
   j = N;
-  _ACC_(acc data present_or_copy(Sol->x_c [0:Nb], Sol->y_c [0:Nb], Sol->A.CoN [0:Nb * Nb], Sol->A.CoP [0:Nb * Nb], Sol->rhs.u [0:Nb * Nb])
-            copyin(Sol->bc_north, Sol->valbc_north, Sol->level, setup->bcd_north))
+  _ACC_(acc data present_or_copyin(x_c_ptr [0:Nb], y_c_ptr [0:Nb])
+            present(CoN_ptr [0:Ntotal], CoP_ptr [0:Ntotal], rhs_ptr [0:Ntotal]))
   {
     _OMP_(omp parallel for private(i, p, bcvalue, x_local, y_local))
     _ACC_(acc parallel loop gang vector private(i, p, bcvalue, x_local, y_local))
     for (i = 1; i <= N; i++)
     {
       p = CENTER;
-      if (Sol->bc_north == BC_DIRICHLET)
+      if (bc_north_local == BC_DIRICHLET)
       {
-        bcvalue = Sol->valbc_north;
-        if (Sol->level == 0 && setup->bcd_north == BCD_MANUFACTURED)
+        bcvalue = valbc_north_local;
+        if (level_local == 0 && bcd_north_local == BCD_MANUFACTURED)
         {
-          x_local = Sol->x_c[i];
-          y_local = Sol->y_c[j];
+          x_local = x_c_ptr[i];
+          y_local = y_c_ptr[j];
           bcvalue = solfieldcalc(x_local, y_local);
         }
-        Sol->A.CoN[p] = 0.0f;
-        Sol->A.CoP[p] -= idy2;
-        Sol->rhs.u[p] -= 2.0 * idy2 * bcvalue;
+        CoN_ptr[p] = 0.0f;
+        CoP_ptr[p] -= idy2;
+        rhs_ptr[p] -= 2.0 * idy2 * bcvalue;
       }
-      if (Sol->bc_north == BC_NEUMANN)
+      if (bc_north_local == BC_NEUMANN)
       {
-        Sol->A.CoN[p] = 0.0f;
-        Sol->A.CoP[p] += idy2;
+        CoN_ptr[p] = 0.0f;
+        CoP_ptr[p] += idy2;
       }
     }
   }
 
   // Get inverse of CoP for smoother
-  _ACC_(acc data present_or_copy(Sol->A.CoP [0:Nb * Nb], Sol->A.CoPinv [0:Nb * Nb]))
+  auto CoPinv_ptr = Sol->A.CoPinv;
+
+  _ACC_(acc data present(CoP_ptr [0:Ntotal], CoPinv_ptr [0:Ntotal]))
   {
     _OMP_(omp parallel for collapse(2) private(i, j, p))
     _ACC_(acc parallel loop gang vector collapse(2) private(i, j, p))
@@ -390,13 +432,13 @@ void initializeSolver(Solver *Sol, Setup *setup)
       for (j = 1; j <= N; j++)
       {
         p = CENTER;
-        if (Sol->A.CoP[p] != 0.0f)
+        if (CoP_ptr[p] != 0.0f)
         {
-          Sol->A.CoPinv[p] = 1.0f / Sol->A.CoP[p];
+          CoPinv_ptr[p] = 1.0f / CoP_ptr[p];
         }
         else
         {
-          Sol->A.CoPinv[p] = 1.0f;
+          CoPinv_ptr[p] = 1.0f;
         }
       }
     }
@@ -420,7 +462,7 @@ void initializeSolver(Solver *Sol, Setup *setup)
     real_t rhs_min = 1.0e20f;
     real_t rhs_L1 = 0.0f;
 
-    _ACC_(acc data present_or_copy(Sol->rhs.u [0:Nb * Nb]) copy(rhs_mean, count, rhs_max, rhs_min, rhs_L1))
+    _ACC_(acc data present(rhs_ptr [0:Ntotal]) copy(rhs_mean, count, rhs_max, rhs_min, rhs_L1))
     {
       _OMP_(omp parallel for collapse(2) reduction(+:rhs_mean,count,rhs_L1) \
          reduction(max:rhs_max) reduction(min:rhs_min) private(ii, jj, p))
@@ -431,11 +473,11 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (jj = 1; jj <= N; jj++)
         {
           p = IDX(ii, jj, Nb);
-          rhs_mean += Sol->rhs.u[p];
+          rhs_mean += rhs_ptr[p];
           count++;
-          rhs_L1 += fabs(Sol->rhs.u[p]);
-          rhs_max = fmaxf(rhs_max, Sol->rhs.u[p]);
-          rhs_min = fminf(rhs_min, Sol->rhs.u[p]);
+          rhs_L1 += fabs(rhs_ptr[p]);
+          rhs_max = fmaxf(rhs_max, rhs_ptr[p]);
+          rhs_min = fminf(rhs_min, rhs_ptr[p]);
         }
       }
     }
@@ -450,7 +492,7 @@ void initializeSolver(Solver *Sol, Setup *setup)
 
     std::cout << "\n\n    Removing mean value of " << rhs_mean << " from RHS field. \n\n";
 
-    _ACC_(acc data present_or_copy(Sol->rhs.u [0:Nb * Nb]))
+    _ACC_(acc data present(rhs_ptr [0:Ntotal]))
     {
       _OMP_(omp parallel for collapse(2) private(ii, jj, p))
       _ACC_(acc parallel loop gang vector collapse(2) private(ii, jj, p))
@@ -459,7 +501,7 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (jj = 1; jj <= N; jj++)
         {
           p = IDX(ii, jj, Nb);
-          Sol->rhs.u[p] -= rhs_mean;
+          rhs_ptr[p] -= rhs_mean;
         }
       }
     }
@@ -471,7 +513,7 @@ void initializeSolver(Solver *Sol, Setup *setup)
     rhs_min = 1.0e20f;
     rhs_L1 = 0.0f;
 
-    _ACC_(acc data present_or_copy(Sol->rhs.u [0:Nb * Nb]) copy(rhs_mean, count, rhs_max, rhs_min, rhs_L1))
+    _ACC_(acc data present(rhs_ptr [0:Ntotal]) copy(rhs_mean, count, rhs_max, rhs_min, rhs_L1))
     {
       _OMP_(omp parallel for collapse(2) reduction(+:rhs_mean,count,rhs_L1) \
          reduction(max:rhs_max) reduction(min:rhs_min) private(ii, jj, p))
@@ -482,11 +524,11 @@ void initializeSolver(Solver *Sol, Setup *setup)
         for (jj = 1; jj <= N; jj++)
         {
           p = IDX(ii, jj, Nb);
-          rhs_mean += Sol->rhs.u[p];
+          rhs_mean += rhs_ptr[p];
           count++;
-          rhs_L1 += fabs(Sol->rhs.u[p]);
-          rhs_max = fmaxf(rhs_max, Sol->rhs.u[p]);
-          rhs_min = fminf(rhs_min, Sol->rhs.u[p]);
+          rhs_L1 += fabs(rhs_ptr[p]);
+          rhs_max = fmaxf(rhs_max, rhs_ptr[p]);
+          rhs_min = fminf(rhs_min, rhs_ptr[p]);
         }
       }
     }

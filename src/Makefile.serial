@@ -1,10 +1,10 @@
 NVCC = nvcc
 CXX = nvc++
 CUDA_FLAGS = -arch=sm_89 -O3 -std=c++14 -ccbin=$(CXX)
-CXX_FLAGS = -acc=gpu -gpu=cc89 -Minfo=accel -O3 -std=c++14 -traceback
+CXX_FLAGS = -O3 -std=c++14 -traceback
 
-# Use double precision and OpenACC by default
-PRECISION = -DUSE_DOUBLE -DUSE_ACC
+# Use double precision by default
+PRECISION = -DUSE_DOUBLE
 
 # Directories
 CALC_DIR = CALCULATORS
@@ -79,7 +79,7 @@ CPP_OBJECTS = $(CALC_OBJ_DIR)/calculators.o \
               $(SOLVER_OBJ_DIR)/switch_solvers.o
 
 # Targets
-MAIN_TARGET = MyPoisonCu.acc
+MAIN_TARGET = MyPoisonCu.serial
 
 # Create object directories
 OBJ_DIRS = $(OBJ_DIR) $(CALC_OBJ_DIR) $(COEF_OBJ_DIR) $(INC_OBJ_DIR) $(IO_OBJ_DIR) \

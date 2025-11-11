@@ -10,6 +10,9 @@
 #ifdef _OPENACC
 #include <openacc.h>
 #endif
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 #include <iostream>
 #include "INCLUDE/structs.cuh"
 #include "COEFFICIENTS/coefficients.cuh"
@@ -46,6 +49,65 @@ int main(int argc, char** argv) {
     #endif
     
     // ========================================================================
+    //                CHECK OPENMP CONFIGURATION
+    // ========================================================================
+    #ifdef USE_OMP
+    #ifdef _OPENMP
+    printf("=============================================================\n");
+    printf("OpenMP Configuration:\n");
+    printf("  OpenMP Version: %d\n", _OPENMP);
+    printf("  Max threads available: %d\n", omp_get_max_threads());
+    printf("  Number of processors: %d\n", omp_get_num_procs());
+    
+    // Get and display thread affinity info
+    #pragma omp parallel
+    {
+        #pragma omp master
+        {
+            printf("  Number of threads in use: %d\n", omp_get_num_threads());
+            printf("  Thread affinity: ");
+            if (omp_get_proc_bind() == omp_proc_bind_false)
+                printf("false (threads can move between processors)\n");
+            else if (omp_get_proc_bind() == omp_proc_bind_true)
+                printf("true (threads bound to processors)\n");
+            else if (omp_get_proc_bind() == omp_proc_bind_master)
+                printf("master (threads bound to same place as master)\n");
+            else if (omp_get_proc_bind() == omp_proc_bind_close)
+                printf("close (threads bound close to master)\n");
+            else if (omp_get_proc_bind() == omp_proc_bind_spread)
+                printf("spread (threads spread across processors)\n");
+        }
+    }
+    
+    // Try to get CPU info (Linux-specific)
+    #ifdef __linux__
+    FILE* cpuinfo = fopen("/proc/cpuinfo", "r");
+    if (cpuinfo != NULL) {
+        char line[256];
+        bool found_model = false;
+        while (fgets(line, sizeof(line), cpuinfo)) {
+            if (strstr(line, "model name") && !found_model) {
+                char* model = strchr(line, ':');
+                if (model) {
+                    model += 2; // Skip ": "
+                    model[strcspn(model, "\n")] = 0; // Remove newline
+                    printf("  CPU Model: %s\n", model);
+                    found_model = true;
+                }
+            }
+        }
+        fclose(cpuinfo);
+    }
+    #endif
+    
+    printf("=============================================================\n\n");
+    #else
+    printf("WARNING: USE_OMP is defined but _OPENMP is not!\n");
+    printf("         OpenMP may not be properly enabled.\n\n");
+    #endif
+    #endif
+    
+    // ========================================================================
     // Create setup struct and read from input.dat
     // ======================================================================== 
     Setup setup;
@@ -78,7 +140,7 @@ int main(int argc, char** argv) {
     // ========================================================================
     // Initialize operators and fields on host (also copies boundary conditions from setup)
     cout << "Initializing solver...\n";
-    initializeSolver(Sol, &setup);     
+    initializeSolver(&Sol, &setup);     
     cout << "Solver initialized successfully.\n";
     
     // ========================================================================

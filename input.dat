@@ -3,16 +3,14 @@
 ===============================================================================
 -------------------- GRID CONFIGURATION ------------------------------------
 N
-128
+64
 Lx_s  Lx_e  Ly_s  Ly_e
 -1.0  1.0   -1.0  1.0
 -------------------- SOLVER CONFIGURATION ----------------------------------
 METHOD      ErrorCheck  omega
-1           1           0.99
-USE_HOST	USE_DEVICE
-0		1
+2           1           0.99
 maxiter     tolerance   inneriter
-500      1.0e-10         10
+50000      1.0e-10         10
 -------------------- FIELD INITIALIZATION ----------------------------------
 INITIALIZATION_TYPE
 2

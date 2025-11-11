@@ -1,10 +1,10 @@
 NVCC = nvcc
 CXX = nvc++
 CUDA_FLAGS = -arch=sm_89 -O3 -std=c++14 -ccbin=$(CXX)
-CXX_FLAGS = -acc=gpu -gpu=cc89 -Minfo=accel -O3 -std=c++14 -traceback
+CXX_FLAGS = -mp -gpu=cc89 -Minfo=accel -O3 -std=c++14 -traceback
 
-# Use double precision and OpenACC by default
-PRECISION = -DUSE_DOUBLE -DUSE_ACC
+# Use double precision, OpenACC, and CUDA
+PRECISION = -DUSE_DOUBLE -DUSE_OMP -DUSE_CUDA
 
 # Directories
 CALC_DIR = CALCULATORS
@@ -44,6 +44,7 @@ CPP_SOURCES = $(CALC_DIR)/calculators.cpp \
               $(INC_DIR)/prolongator.cpp \
               $(INC_DIR)/restrictor.cpp \
               $(INC_DIR)/solver.cpp \
+              $(INC_DIR)/field_instantiate.cpp \
               $(IO_DIR)/read_input.cpp \
               $(IO_DIR)/write_output.cpp \
               $(SOLVER_DIR)/BiCGSTAB/bicgstab.cpp \
@@ -69,6 +70,7 @@ CPP_OBJECTS = $(CALC_OBJ_DIR)/calculators.o \
               $(INC_OBJ_DIR)/prolongator.o \
               $(INC_OBJ_DIR)/restrictor.o \
               $(INC_OBJ_DIR)/solver.o \
+              $(INC_OBJ_DIR)/field_instantiate.o \
               $(IO_OBJ_DIR)/read_input.o \
               $(IO_OBJ_DIR)/write_output.o \
               $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab.o \
@@ -79,7 +81,7 @@ CPP_OBJECTS = $(CALC_OBJ_DIR)/calculators.o \
               $(SOLVER_OBJ_DIR)/switch_solvers.o
 
 # Targets
-MAIN_TARGET = MyPoisonCu.acc
+MAIN_TARGET = MyPoisonCu.cuda
 
 # Create object directories
 OBJ_DIRS = $(OBJ_DIR) $(CALC_OBJ_DIR) $(COEF_OBJ_DIR) $(INC_OBJ_DIR) $(IO_OBJ_DIR) \
@@ -148,12 +150,12 @@ clean:
 # Build with double precision (default)
 double:
 	$(MAKE) clean
-	$(MAKE) PRECISION="-DUSE_DOUBLE"
+	$(MAKE) PRECISION="-DUSE_DOUBLE -DUSE_ACC -DUSE_CUDA"
 
 # Build with single precision
 single:
 	$(MAKE) clean
-	$(MAKE) PRECISION=""
+	$(MAKE) PRECISION="-DUSE_ACC -DUSE_CUDA"
 
 # Phony targets
 .PHONY: all clean single double

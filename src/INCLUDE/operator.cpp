@@ -1,4 +1,6 @@
 #include "structs.cuh"
+#include <cstdio> // for fprintf, stderr
+#include <cstdlib> // for exit
 
 #define ONE 1.0
 

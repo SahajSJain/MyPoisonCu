@@ -104,7 +104,7 @@
 #define METHOD_MULTIGRID 4
 
 // Simulation type string for file naming
-#ifdef defined(USE_CUDA)
+#ifdef USE_CUDA
     #define SIMTYPE "cuda"
 #elif defined(USE_ACC)
     #define SIMTYPE "acc"
@@ -191,7 +191,11 @@ private:
     void download_acc();
     void deepCopy_cuda(const Field& source);
     void deepCopy_acc(const Field& source);
+#if !defined(__CUDACC__)
+    void fillDevice_cuda(T) {}
+#else
     void fillDevice_cuda(T value);
+#endif
     void fillDevice_acc(T value);
 };
 
@@ -411,3 +415,4 @@ private:
 };
 
 #endif // TYPES_H
+

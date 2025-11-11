@@ -1,4 +1,6 @@
 #include "structs.cuh"
+#include <cstdio> // for fprintf, stderr
+#include <cstdlib> // for exit
 
 Solver::Solver(int N, int Nf, int Nc, int level, 
                real_t Lxs, real_t Lxe, real_t Lys, real_t Lye, int method)
