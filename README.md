@@ -22,6 +22,25 @@ on a rectangular domain with configurable boundary conditions using finite diffe
 - **RAII Design**: Automatic memory management with C++ classes
 - **Unified Interface**: Single codebase for all backends
 
+## Performance
+
+## BICGSTAB, N = 4096, N×N = 16777216
+
+| Method | Machine | Time per timestep (s) | Relative Speedup vs Serial | Relative Speedup vs OpenMP |
+|--------|---------|----------------------|----------------------------|----------------------------|
+| **Serial** | Intel Xeon Gold Cascade Lake 6248R (1 core) | 0.9342 | 1.00 | 0.06 |
+| **OpenMP** | Intel Xeon Gold Cascade Lake 6248R (48 cores) | 0.0535 | 17.46 | 1.00 |
+| **OpenACC** | Nvidia a100 | 0.0054 | 174.37 | 9.99 |
+| **CUDA** | Nvidia a100 | 0.0067 | 138.57 | 7.94 |
+
+# 1. BiCGSTAB
+   
+![alt text](./bicgstab_performance_comparison.png)
+
+# 2. Scheduled Relaxation Jacobi
+   
+![alt text](./SRJ_performance_comparison.png)
+
 ## Building
 
 The project supports multiple build configurations:
