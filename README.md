@@ -22,6 +22,19 @@ on a rectangular domain with configurable boundary conditions using finite diffe
 - **RAII Design**: Automatic memory management with C++ classes
 - **Unified Interface**: Single codebase for all backends
 
+## Key Data Structures in OOP based design:
+
+- Fields : Stores a 2 dimensional array, along with its size, operating range of inner grid points (as opposed to boundary points), and a device copy. Also contains dedicated functions for uploading to and downloading from the device, allocation and deallocation to both host and device. Template based design. 
+- Operator : Left hand size 5 point operator for linear equation
+  ```
+  L(u) = f
+  ```
+  While I am not doing so, Operator should have had been made up of Fields.
+- Solver : Made up of operator and relevant fields. Has all the information to solve the equation itself.. A mujlti grid method would be made up different Solvers at different levels. 
+- Setup : Setup for the entire problem.
+
+Overall, I have some regrets; would have been better to do unified memory as it would have allowed me to combine OpenACC and CUDA. But its fine. 
+
 ## Performance
 
 ### BICGSTAB, N = 4096, N×N = 16777216
