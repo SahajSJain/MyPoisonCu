@@ -24,7 +24,7 @@ on a rectangular domain with configurable boundary conditions using finite diffe
 
 ## Performance
 
-## BICGSTAB, N = 4096, N×N = 16777216
+### BICGSTAB, N = 4096, N×N = 16777216
 
 | Method | Machine | Time per timestep (s) | Relative Speedup vs Serial | Relative Speedup vs OpenMP |
 |--------|---------|----------------------|----------------------------|----------------------------|
@@ -33,11 +33,11 @@ on a rectangular domain with configurable boundary conditions using finite diffe
 | **OpenACC** | Nvidia a100 | 0.0054 | 174.37 | 9.99 |
 | **CUDA** | Nvidia a100 | 0.0067 | 138.57 | 7.94 |
 
-# 1. BiCGSTAB
+### 1. BiCGSTAB
    
 ![alt text](./bicgstab_performance_comparison.png)
 
-# 2. Scheduled Relaxation Jacobi
+### 2. Scheduled Relaxation Jacobi
    
 ![alt text](./SRJ_performance_comparison.png)
 
