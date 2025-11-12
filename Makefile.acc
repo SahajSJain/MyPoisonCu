@@ -1,0 +1,159 @@
+NVCC = nvcc
+CXX = nvc++
+CUDA_FLAGS = -arch=sm_89 -O3 -std=c++14 -ccbin=$(CXX)
+CXX_FLAGS = -acc=gpu -gpu=cc89 -Minfo=accel -O3 -std=c++14 -traceback
+
+# Use double precision and OpenACC by default
+PRECISION = -DUSE_DOUBLE -DUSE_ACC
+
+# Directories
+CALC_DIR = CALCULATORS
+COEF_DIR = COEFFICIENTS
+INC_DIR = INCLUDE
+IO_DIR = INPUTOUTPUT
+SOLVER_DIR = SOLVERS
+
+# Object directories
+OBJ_DIR = .obj
+CALC_OBJ_DIR = $(CALC_DIR)/$(OBJ_DIR)
+COEF_OBJ_DIR = $(COEF_DIR)/$(OBJ_DIR)
+INC_OBJ_DIR = $(INC_DIR)/$(OBJ_DIR)
+IO_OBJ_DIR = $(IO_DIR)/$(OBJ_DIR)
+SOLVER_OBJ_DIR = $(SOLVER_DIR)/$(OBJ_DIR)
+SOLVER_BICGSTAB_OBJ_DIR = $(SOLVER_DIR)/BiCGSTAB/$(OBJ_DIR)
+SOLVER_JACOBI_OBJ_DIR = $(SOLVER_DIR)/JACOBI/$(OBJ_DIR)
+SOLVER_SRJ_OBJ_DIR = $(SOLVER_DIR)/SRJ/$(OBJ_DIR)
+
+# Include paths
+INCLUDES = -I$(INC_DIR) -I$(CALC_DIR) -I$(COEF_DIR) -I$(IO_DIR) -I$(SOLVER_DIR)
+
+# Source files - CUDA
+CUDA_SOURCES = $(CALC_DIR)/calculators_device.cu \
+               $(CALC_DIR)/calculators_kernels.cu \
+               $(INC_DIR)/field.cu \
+               $(INC_DIR)/operator.cu \
+               $(INC_DIR)/prolongator.cu \
+               $(INC_DIR)/restrictor.cu
+
+# Source files - C++
+CPP_SOURCES = $(CALC_DIR)/calculators.cpp \
+              $(CALC_DIR)/calculators_host.cpp \
+              $(COEF_DIR)/initializeSolver.cpp \
+              $(INC_DIR)/field.cpp \
+              $(INC_DIR)/operator.cpp \
+              $(INC_DIR)/prolongator.cpp \
+              $(INC_DIR)/restrictor.cpp \
+              $(INC_DIR)/solver.cpp \
+              $(IO_DIR)/read_input.cpp \
+              $(IO_DIR)/write_output.cpp \
+              $(SOLVER_DIR)/BiCGSTAB/bicgstab.cpp \
+              $(SOLVER_DIR)/BiCGSTAB/bicgstab_step.cpp \
+              $(SOLVER_DIR)/JACOBI/jacobi.cpp \
+              $(SOLVER_DIR)/JACOBI/jacobi_step.cpp \
+              $(SOLVER_DIR)/SRJ/SRJ.cpp \
+              $(SOLVER_DIR)/switch_solvers.cpp
+
+# Object files
+CUDA_OBJECTS = $(CALC_OBJ_DIR)/calculators_device.o \
+               $(CALC_OBJ_DIR)/calculators_kernels.o \
+               $(INC_OBJ_DIR)/field_cu.o \
+               $(INC_OBJ_DIR)/operator_cu.o \
+               $(INC_OBJ_DIR)/prolongator_cu.o \
+               $(INC_OBJ_DIR)/restrictor_cu.o
+
+CPP_OBJECTS = $(CALC_OBJ_DIR)/calculators.o \
+              $(CALC_OBJ_DIR)/calculators_host.o \
+              $(COEF_OBJ_DIR)/initializeSolver.o \
+              $(INC_OBJ_DIR)/field.o \
+              $(INC_OBJ_DIR)/operator.o \
+              $(INC_OBJ_DIR)/prolongator.o \
+              $(INC_OBJ_DIR)/restrictor.o \
+              $(INC_OBJ_DIR)/solver.o \
+              $(IO_OBJ_DIR)/read_input.o \
+              $(IO_OBJ_DIR)/write_output.o \
+              $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab.o \
+              $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab_step.o \
+              $(SOLVER_JACOBI_OBJ_DIR)/jacobi.o \
+              $(SOLVER_JACOBI_OBJ_DIR)/jacobi_step.o \
+              $(SOLVER_SRJ_OBJ_DIR)/SRJ.o \
+              $(SOLVER_OBJ_DIR)/switch_solvers.o
+
+# Targets
+MAIN_TARGET = MyPoisonCu.acc
+
+# Create object directories
+OBJ_DIRS = $(OBJ_DIR) $(CALC_OBJ_DIR) $(COEF_OBJ_DIR) $(INC_OBJ_DIR) $(IO_OBJ_DIR) \
+           $(SOLVER_OBJ_DIR) $(SOLVER_BICGSTAB_OBJ_DIR) $(SOLVER_JACOBI_OBJ_DIR) $(SOLVER_SRJ_OBJ_DIR)
+
+# Default target
+all: $(OBJ_DIRS) $(MAIN_TARGET)
+
+# Create directories
+$(OBJ_DIRS):
+	@mkdir -p $@
+
+# Main executable
+$(MAIN_TARGET): $(OBJ_DIR)/main.o $(CUDA_OBJECTS) $(CPP_OBJECTS)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) -o $@ $^ -lcudart
+
+# Compilation rules for CUDA files
+$(CALC_OBJ_DIR)/%.o: $(CALC_DIR)/%.cu | $(CALC_OBJ_DIR)
+	$(NVCC) $(CUDA_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(INC_OBJ_DIR)/%_cu.o: $(INC_DIR)/%.cu | $(INC_OBJ_DIR)
+	$(NVCC) $(CUDA_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+# Compilation rules for C++ files
+$(CALC_OBJ_DIR)/%.o: $(CALC_DIR)/%.cpp | $(CALC_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(COEF_OBJ_DIR)/%.o: $(COEF_DIR)/%.cpp | $(COEF_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(INC_OBJ_DIR)/%.o: $(INC_DIR)/%.cpp | $(INC_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(IO_OBJ_DIR)/%.o: $(IO_DIR)/%.cpp | $(IO_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_BICGSTAB_OBJ_DIR)/%.o: $(SOLVER_DIR)/BiCGSTAB/%.cpp | $(SOLVER_BICGSTAB_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_JACOBI_OBJ_DIR)/%.o: $(SOLVER_DIR)/JACOBI/%.cpp | $(SOLVER_JACOBI_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_SRJ_OBJ_DIR)/%.o: $(SOLVER_DIR)/SRJ/%.cpp | $(SOLVER_SRJ_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+$(SOLVER_OBJ_DIR)/%.o: $(SOLVER_DIR)/%.cpp | $(SOLVER_OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+# Main object file
+$(OBJ_DIR)/main.o: main.cpp | $(OBJ_DIR)
+	$(CXX) $(CXX_FLAGS) $(PRECISION) $(INCLUDES) -c $< -o $@
+
+# Clean
+clean:
+	rm -f $(MAIN_TARGET)
+	rm -rf $(OBJ_DIR)
+	rm -rf $(CALC_OBJ_DIR)
+	rm -rf $(COEF_OBJ_DIR)
+	rm -rf $(INC_OBJ_DIR)
+	rm -rf $(IO_OBJ_DIR)
+	rm -rf $(SOLVER_OBJ_DIR)
+	rm -rf $(SOLVER_BICGSTAB_OBJ_DIR)
+	rm -rf $(SOLVER_JACOBI_OBJ_DIR)
+	rm -rf $(SOLVER_SRJ_OBJ_DIR)
+
+# Build with double precision (default)
+double:
+	$(MAKE) clean
+	$(MAKE) PRECISION="-DUSE_DOUBLE"
+
+# Build with single precision
+single:
+	$(MAKE) clean
+	$(MAKE) PRECISION=""
+
+# Phony targets
+.PHONY: all clean single double
