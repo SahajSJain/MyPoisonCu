@@ -46,6 +46,7 @@ CPP_SOURCES = $(CALC_DIR)/calculators.cpp \
               $(INC_DIR)/solver.cpp \
               $(IO_DIR)/read_input.cpp \
               $(IO_DIR)/write_output.cpp \
+              $(INC_DIR)/field_instantiate.cpp \
               $(SOLVER_DIR)/BiCGSTAB/bicgstab.cpp \
               $(SOLVER_DIR)/BiCGSTAB/bicgstab_step.cpp \
               $(SOLVER_DIR)/JACOBI/jacobi.cpp \
@@ -71,6 +72,7 @@ CPP_OBJECTS = $(CALC_OBJ_DIR)/calculators.o \
               $(INC_OBJ_DIR)/solver.o \
               $(IO_OBJ_DIR)/read_input.o \
               $(IO_OBJ_DIR)/write_output.o \
+              $(INC_OBJ_DIR)/field_instantiate.o \
               $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab.o \
               $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab_step.o \
               $(SOLVER_JACOBI_OBJ_DIR)/jacobi.o \

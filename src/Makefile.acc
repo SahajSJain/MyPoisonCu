@@ -44,6 +44,7 @@ CPP_SOURCES = $(CALC_DIR)/calculators.cpp \
               $(INC_DIR)/prolongator.cpp \
               $(INC_DIR)/restrictor.cpp \
               $(INC_DIR)/solver.cpp \
+              $(INC_DIR)/field_instantiate.cpp \
               $(IO_DIR)/read_input.cpp \
               $(IO_DIR)/write_output.cpp \
               $(SOLVER_DIR)/BiCGSTAB/bicgstab.cpp \
@@ -69,6 +70,7 @@ CPP_OBJECTS = $(CALC_OBJ_DIR)/calculators.o \
               $(INC_OBJ_DIR)/prolongator.o \
               $(INC_OBJ_DIR)/restrictor.o \
               $(INC_OBJ_DIR)/solver.o \
+              $(INC_OBJ_DIR)/field_instantiate.o \
               $(IO_OBJ_DIR)/read_input.o \
               $(IO_OBJ_DIR)/write_output.o \
               $(SOLVER_BICGSTAB_OBJ_DIR)/bicgstab.o \

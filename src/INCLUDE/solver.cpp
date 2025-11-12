@@ -1,7 +1,7 @@
 #include "structs.cuh"
 #include <cstdio> // for fprintf, stderr
 #include <cstdlib> // for exit
-
+#include <iostream> // for std::cout
 Solver::Solver(int N, int Nf, int Nc, int level, 
                real_t Lxs, real_t Lxe, real_t Lys, real_t Lye, int method)
     : N(N), 
@@ -96,6 +96,10 @@ void Solver::setupGPUParameters() {
     numblocksB = (Nb + numthreadsB - 1) / numthreadsB;
     numThreads2DB[0] = numThreads2DB[1] = numthreadsB;
     numBlocks2DB[0] = numBlocks2DB[1] = numblocksB;
+    std::cout << "  Num Threads    = " << numthreads << "\n";
+    std::cout << "  Num Blocks     = " << numblocks << "\n";
+    std::cout << "  Num Threads 2D = " << numThreads2D[0] << " x " << numThreads2D[1] << "=" << numThreads2D[0] * numThreads2D[1] << "\n"; 
+    std::cout << "  Num Blocks 2D  = " << numBlocks2D[0]  << " x " << numBlocks2D[1]  << "=" << numBlocks2D[0] * numBlocks2D[1]   << "\n";
 }
 
 void Solver::allocateCoordinates() {

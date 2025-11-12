@@ -62,6 +62,7 @@ void bicgstab(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iterat
   real_t norm = REAL_MAX;      // initial residual norm to a large number
   int numThreads = Sol.numthreads;
   int numBlocks = Sol.numblocks;
+  int total_iterations = 0;
   
   cout << " =============================================================== \n";
   #ifdef USE_CUDA
@@ -86,7 +87,7 @@ void bicgstab(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iterat
   
   // 3. rho0 = (r0_hat, r0)
   real_t rho0 = 0.0; 
-  calculate_dot_product(*Sol.bi_r0hat, Sol.residual, rho0, numThreads, numBlocks); 
+  calculate_dot_product(*Sol.bi_r0hat, Sol.residual, rho0, Sol.temp, numThreads, numBlocks); 
   Sol.bis_rho0 = rho0; 
   Sol.bis_rho1 = rho0;
   
@@ -103,29 +104,32 @@ void bicgstab(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iterat
   for (outeriter = 1; outeriter <= maxouteriter; outeriter++)
   {
     time_start_2 = timer();
+    
+    // Perform inneriter iterations without norm calculation
     for (iter = 1; iter <= inneriter; iter++)
     {
-      norm = bicgstab_step(Sol, setup->tolerance);
-      
-      // Update total time
-      real_t current_total_time = timer() - time_start;
-      
-      // Write to history file
-      history << (outeriter - 1) * inneriter + iter << ", " << norm
-              << ", " << current_total_time << "\n";
-      
-      if (norm < setup->tolerance)
-      { 
-        break; // converged
-      }
+      bicgstab_step(Sol);
+      total_iterations++;
     }
+    
+    // Calculate residual norm after inneriter iterations
+    norm = 0.0;
+    calculate_dot_product(Sol.residual, Sol.residual, norm, Sol.temp, numThreads, numBlocks);
+    norm = sqrt(norm) / (Sol.N * Sol.N);
     
     time_end_2 = timer();
     current_time = time_end_2 - time_start_2;
     total_time += current_time;
     
+    // Update total time for history
+    real_t current_total_time = timer() - time_start;
+    
+    // Write to history file and print to stdout
+    history << total_iterations << ", " << norm
+            << ", " << current_total_time << "\n";
+    
     printf(" %9d | %14.6e | %13.8f | %14.8f\n",
-           outeriter * inneriter, norm, current_time / inneriter, total_time);
+           total_iterations, norm, current_time / inneriter, total_time);
     
     if (norm < setup->tolerance)
     { 
@@ -142,14 +146,14 @@ void bicgstab(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iterat
   time_end = timer();
   cout << " =============================================================== \n";
   cout << " Total BICGSTAB Time (s): " << time_end - time_start << "\n";
-  cout << " Total BICGSTAB Time per iteration (s): " << (time_end - time_start) / (outeriter * inneriter) << "\n";
+  cout << " Total BICGSTAB Time per iteration (s): " << (time_end - time_start) / total_iterations << "\n";
   cout << " Total BICGSTAB Outer Iterations: " << outeriter << "\n";
-  cout << " Total BICGSTAB Iterations: " << outeriter * inneriter << "\n";
+  cout << " Total BICGSTAB Iterations: " << total_iterations << "\n";
   cout << " =============================================================== \n";
   
   *time_total = time_end - time_start;
-  *time_iteration = *time_total / (outeriter * inneriter);
-  *num_iterations = outeriter * inneriter;
+  *time_iteration = *time_total / total_iterations;
+  *num_iterations = total_iterations;
   
   // Download from device if using CUDA/ACC
   Sol.download();

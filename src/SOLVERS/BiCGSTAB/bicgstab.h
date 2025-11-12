@@ -9,6 +9,6 @@
 // BiCGSTAB solver - host version
 // Returns: total time, time per iteration, number of iterations
 void bicgstab(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iteration, int *num_iterations);
-real_t bicgstab_step(Solver &Sol, real_t restol);
+void bicgstab_step(Solver &Sol);
 
 #endif // BICGSTAB_H

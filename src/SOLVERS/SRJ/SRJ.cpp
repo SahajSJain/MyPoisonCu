@@ -32,10 +32,10 @@ void SRJ(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iteration, 
   real_t time_start_2, time_end_2;
   real_t total_time = 0.0;
   real_t current_time = 0.0;
-  real_t current_total_time = 0.0;
   real_t norm = REAL_MAX; // initial residual norm to a large number
   int numThreads = Sol.numthreads;
   int numBlocks = Sol.numblocks;
+  int total_iterations = 0;
 
   cout << " =============================================================== \n";
 #ifdef USE_CUDA
@@ -61,29 +61,32 @@ void SRJ(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iteration, 
   for (outeriter = 1; outeriter <= maxouteriter; outeriter++)
   {
     time_start_2 = timer();
+    
+    // Perform inneriter iterations without norm calculation
     for (iter = 1; iter <= inneriter; iter++)
     {
       jacobi_step(Sol, SRJomega[iter - 1]);
-      
-      // Calculate residual norm after each iteration
-      norm = 0.0;
-      calculate_dot_product(Sol.residual, Sol.residual, norm, numThreads, numBlocks);
-      norm = sqrt(norm) / (Sol.N * Sol.N);
-      
-      // Update total time
-      current_total_time = timer() - time_start;
-      
-      // Write to history file
-      history << (outeriter - 1) * inneriter + iter << ", " << norm
-              << ", " << current_total_time << "\n";
+      total_iterations++;
     }
+    
+    // Calculate residual norm after inneriter iterations
+    norm = 0.0;
+    calculate_dot_product(Sol.residual, Sol.residual, norm, Sol.temp, numThreads, numBlocks);
+    norm = sqrt(norm) / (Sol.N * Sol.N);
 
     time_end_2 = timer();
     current_time = time_end_2 - time_start_2;
     total_time += current_time;
+    
+    // Update total time for history
+    real_t current_total_time = timer() - time_start;
+    
+    // Write to history file and print to stdout
+    history << total_iterations << ", " << norm
+            << ", " << current_total_time << "\n";
 
     printf(" %9d | %14.6e | %13.8f | %14.8f\n",
-           outeriter * inneriter, norm, current_time / inneriter, total_time);
+           total_iterations, norm, current_time / inneriter, total_time);
 
     if (norm < setup->tolerance)
     {
@@ -100,14 +103,14 @@ void SRJ(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iteration, 
   time_end = timer();
   cout << " =============================================================== \n";
   cout << " Total SRJ Time (s): " << time_end - time_start << "\n";
-  cout << " Total SRJ Time per iteration (s): " << (time_end - time_start) / (outeriter * inneriter) << "\n";
+  cout << " Total SRJ Time per iteration (s): " << (time_end - time_start) / total_iterations << "\n";
   cout << " Total SRJ Outer Iterations: " << outeriter << "\n";
-  cout << " Total SRJ Iterations: " << outeriter * inneriter << "\n";
+  cout << " Total SRJ Iterations: " << total_iterations << "\n";
   cout << " =============================================================== \n";
 
   *time_total = time_end - time_start;
-  *time_iteration = *time_total / (outeriter * inneriter);
-  *num_iterations = outeriter * inneriter;
+  *time_iteration = *time_total / total_iterations;
+  *num_iterations = total_iterations;
 
   // Download from device if using CUDA/ACC
   Sol.download();

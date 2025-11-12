@@ -4,7 +4,9 @@
 
 #include "calculators.cuh"
 #include "../INCLUDE/structs.cuh"
-
+#include <cub/cub.cuh>
+#include <cuda_runtime.h>
+#include <iostream>
 // Index macros for 2D grid with boundaries
 #define IDX(i, j, Nb) ((i) * (Nb) + (j))
 #define EAST IDX(i + 1, j, Nb)
@@ -18,27 +20,51 @@
 
 // ===================== DOT PRODUCT KERNELS =====================
 // Dot product: sum(u1[i] * u2[i])
-__global__ void calculate_dot_product_kernel(real_t *u1, real_t *u2, real_t *dotproduct, int N, int Nb)
+__global__ void calculate_dot_product_kernel(real_t *u1, real_t *u2, real_t *dotproduct, real_t *temp, int N, int Nb)
 {
 	int i = blockIdx.y * blockDim.y + threadIdx.y + 1;
 	int j = blockIdx.x * blockDim.x + threadIdx.x + 1;
 	if (i <= N && j <= N)
 	{
-		real_t local_product = u1[CENTER] * u2[CENTER];
-		atomicAdd(dotproduct, local_product);
+		int linear_idx = (i-1) * N + (j-1);
+		temp[linear_idx] = u1[CENTER] * u2[CENTER];
 	}
 }
 
 // Operator-inverse weighted dot product: sum(u1[i] * u2[i] * CoPinv[i]^2)
-__global__ void calculate_opinv_dot_product_kernel(real_t *u1, real_t *u2, real_t *CoPinv, real_t *dotproduct, int N, int Nb)
+__global__ void calculate_opinv_dot_product_kernel(real_t *u1, real_t *u2, real_t *CoPinv, real_t *dotproduct, real_t *temp, int N, int Nb)
 {
-	int i = blockIdx.y * blockDim.y + threadIdx.y + 1;
-	int j = blockIdx.x * blockDim.x + threadIdx.x + 1;
+	int i = blockIdx.y * blockDim.y + threadIdx.y + 1; 
+	int j = blockIdx.x * blockDim.x + threadIdx.x + 1; 
 	if (i <= N && j <= N)
 	{
-		real_t local_product = u1[CENTER] * u2[CENTER] * CoPinv[CENTER] * CoPinv[CENTER];
-		atomicAdd(dotproduct, local_product);
+		int linear_idx = (i-1) * N + (j-1);
+		temp[linear_idx] = u1[CENTER] * u2[CENTER] * CoPinv[CENTER] * CoPinv[CENTER];
 	}
+}
+
+// Residual norm calculation
+// Residual norm calculation
+__global__ void calculate_residual_norm_kernel(real_t *u, real_t *rhs, real_t *CoE, real_t *CoW, real_t *CoN, real_t *CoS, real_t *CoP, real_t *result, int N, int Nb)
+{
+    int i = blockIdx.y * blockDim.y + threadIdx.y + 1;
+    int j = blockIdx.x * blockDim.x + threadIdx.x + 1;
+    if (i <= N && j <= N)
+    {
+        real_t residual = rhs[CENTER] 
+                        - (CoP[CENTER] * u[CENTER]
+                         + CoE[CENTER] * u[EAST]
+                         + CoW[CENTER] * u[WEST]
+                         + CoN[CENTER] * u[NORTH]
+                         + CoS[CENTER] * u[SOUTH]);
+        
+        // Get absolute value of residual
+        #ifdef USE_DOUBLE
+            result[CENTER] = fabs(residual);
+        #else
+            result[CENTER] = fabsf(residual);
+        #endif
+    }
 }
 
 // ===================== VECTOR OPERATIONS KERNELS =====================
@@ -102,23 +128,6 @@ __global__ void calculate_matrix_vector_kernel(real_t* phi_u, real_t* CoE, real_
 		}
 }
 
-// Residual norm calculation
-__global__ void calculate_residual_norm_kernel(real_t *u, real_t *rhs, real_t *CoE, real_t *CoW, real_t *CoN, real_t *CoS, real_t *CoP, real_t *result, real_t *norm, int N, int Nb)
-{
-	int i = blockIdx.y * blockDim.y + threadIdx.y + 1;
-	int j = blockIdx.x * blockDim.x + threadIdx.x + 1;
-	if (i <= N && j <= N)
-	{
-		result[CENTER] = rhs[CENTER]
-									 - (CoP[CENTER] * u[CENTER]
-										+ CoE[CENTER] * u[EAST]
-										+ CoW[CENTER] * u[WEST]
-										+ CoN[CENTER] * u[NORTH]
-										+ CoS[CENTER] * u[SOUTH]);
-		real_t abs_residual = FABS(result[CENTER]);
-		atomicAdd(norm, abs_residual);
-	}
-}
 
 // Residual calculation: result = rhs - (A * u)
 __global__ void calculate_residual_kernel(real_t* u_u, real_t* rhs_u, real_t* CoE, real_t* CoW, real_t* CoN, real_t* CoS, real_t* CoP, real_t* result_u, int N, int Nb)

@@ -51,21 +51,26 @@ void calculate_matrix_vector(Field<real_t> &phi, Operator &op, Field<real_t> &re
 }
 
 // ===================== DOT PRODUCT OPERATIONS =====================
-void calculate_dot_product(Field<real_t> &u1, Field<real_t> &u2, real_t &result, int numThreads, int numBlocks)
+void calculate_dot_product(Field<real_t> &u1, Field<real_t> &u2, real_t &result, 
+                          Field<real_t> &temp, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-    calculate_dot_product_device(u1, u2, result, numThreads, numBlocks);
+    calculate_dot_product_device(u1, u2, result, temp, numThreads, numBlocks);
 #else
     calculate_dot_product_host(u1, u2, result);
+    // Note: temp is not used in host version
 #endif
 }
 
-void calculate_opinv_dot_product(Field<real_t> &u1, Field<real_t> &u2, Operator &op, real_t &result, int numThreads, int numBlocks)
+void calculate_opinv_dot_product(Field<real_t> &u1, Field<real_t> &u2, Operator &op, 
+                                real_t &result, Field<real_t> &temp, 
+                                int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-    calculate_opinv_dot_product_device(u1, u2, op, result, numThreads, numBlocks);
+    calculate_opinv_dot_product_device(u1, u2, op, result, temp, numThreads, numBlocks);
 #else
     calculate_opinv_dot_product_host(u1, u2, op, result);
+    // Note: temp is not used in host version
 #endif
 }
 

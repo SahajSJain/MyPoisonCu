@@ -191,12 +191,6 @@ private:
     void download_acc();
     void deepCopy_cuda(const Field& source);
     void deepCopy_acc(const Field& source);
-#if !defined(__CUDACC__)
-    void fillDevice_cuda(T) {}
-#else
-    void fillDevice_cuda(T value);
-#endif
-    void fillDevice_acc(T value);
 };
 
 

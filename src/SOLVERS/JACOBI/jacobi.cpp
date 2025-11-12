@@ -68,7 +68,7 @@ void jacobi(Solver &Sol, Setup *setup, real_t *time_total, real_t *time_iteratio
       
       // Calculate residual norm after each iteration
       norm = 0.0;
-      calculate_dot_product(Sol.residual, Sol.residual, norm, numThreads, numBlocks);
+      calculate_dot_product(Sol.residual, Sol.residual, norm, Sol.temp, numThreads, numBlocks);
       norm = sqrt(norm) / (Sol.N * Sol.N);
       
       // Update total time

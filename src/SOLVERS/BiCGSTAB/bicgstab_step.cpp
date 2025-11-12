@@ -32,7 +32,7 @@
 #include "../../INCLUDE/structs.cuh"
 #include "../../CALCULATORS/calculators.cuh"
 
-real_t bicgstab_step(Solver &Sol, real_t restol) {
+void bicgstab_step(Solver &Sol) {
     int N = Sol.N;
     int Nb = Sol.Nb;
     int numThreads = Sol.numthreads;
@@ -58,7 +58,7 @@ real_t bicgstab_step(Solver &Sol, real_t restol) {
     
     // 3. alpha = rho_{i-1} / (r0_hat, v)
     real_t alpha_denominator = 0.0;
-    calculate_dot_product(*Sol.bi_r0hat, *Sol.bi_v, alpha_denominator, numThreads, numBlocks);
+    calculate_dot_product(*Sol.bi_r0hat, *Sol.bi_v, alpha_denominator, Sol.temp, numThreads, numBlocks);
     real_t alpha = Sol.bis_rho0 / alpha_denominator;
     Sol.bis_alpha = alpha;
     
@@ -68,14 +68,7 @@ real_t bicgstab_step(Solver &Sol, real_t restol) {
     // 5. s = r_{i-1} - alpha*v
     calculate_vector_linear_combination(ONE, -alpha, Sol.residual, *Sol.bi_v, *Sol.bi_s, numThreads, numBlocks);
     
-    // 6. If h is accurate enough then x_i = h and quit
-    real_t norm_h = 0.0;
-    calculate_residual_norm(*Sol.bi_h, Sol.rhs, Sol.A, Sol.temp, norm_h, numThreads, numBlocks);
-    if(norm_h < restol) {
-        calculate_vector_linear_combination(ONE, ZERO, *Sol.bi_h, *Sol.bi_h, Sol.phi, numThreads, numBlocks);
-        calculate_boundary_values(Sol.phi, Sol, numThreads);
-        return norm_h;
-    }
+    // 6. Skip early termination check - removed norm calculation
     
     // 7. z = K2^(-1) * K1^(-1) * s
     #ifdef USE_CUDA
@@ -95,8 +88,8 @@ real_t bicgstab_step(Solver &Sol, real_t restol) {
     // 9. omega = (K1^(-1)*t, K1^(-1)*s) / (K1^(-1)*t, K1^(-1)*t)
     real_t omega_numerator = 0.0;
     real_t omega_denominator = 0.0;
-    calculate_opinv_dot_product(*Sol.bi_t, *Sol.bi_s, Sol.A, omega_numerator, numThreads, numBlocks);
-    calculate_opinv_dot_product(*Sol.bi_t, *Sol.bi_t, Sol.A, omega_denominator, numThreads, numBlocks);
+    calculate_opinv_dot_product(*Sol.bi_t, *Sol.bi_s, Sol.A, omega_numerator, Sol.temp, numThreads, numBlocks);
+    calculate_opinv_dot_product(*Sol.bi_t, *Sol.bi_t, Sol.A, omega_denominator, Sol.temp, numThreads, numBlocks);
     real_t omega = omega_numerator / omega_denominator;
     Sol.bis_omega = omega;
     
@@ -107,16 +100,11 @@ real_t bicgstab_step(Solver &Sol, real_t restol) {
     // 11. r_i = s - omega*t
     calculate_vector_linear_combination(ONE, -omega, *Sol.bi_s, *Sol.bi_t, Sol.residual, numThreads, numBlocks);
     
-    // 12. If x_i is accurate enough then quit
-    real_t norm_x = 0.0;
-    calculate_residual_norm(Sol.phi, Sol.rhs, Sol.A, Sol.temp, norm_x, numThreads, numBlocks);
-    if(norm_x < restol) {
-        return norm_x;
-    }
+    // 12. Skip convergence check - removed norm calculation
     
     // 13. rho_i = (r0_hat, r_i)
     real_t rho1 = 0.0;
-    calculate_dot_product(*Sol.bi_r0hat, Sol.residual, rho1, numThreads, numBlocks);
+    calculate_dot_product(*Sol.bi_r0hat, Sol.residual, rho1, Sol.temp, numThreads, numBlocks);
     Sol.bis_rho1 = rho1;
     
     // 14. beta = (rho_i/rho_{i-1}) * (alpha/omega)
@@ -129,5 +117,4 @@ real_t bicgstab_step(Solver &Sol, real_t restol) {
     
     // Update rho0 for next iteration
     Sol.bis_rho0 = rho1;
-    return norm_x;
 }

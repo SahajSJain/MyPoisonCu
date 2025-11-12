@@ -161,22 +161,6 @@ void Field<T>::deepCopy_acc(const Field& source) {
 }
 // ... other ACC functions ...
 
-template<typename T>
-void Field<T>::fillDevice_acc(T value) {
-    // For OpenACC, update device after filling host
-    _ACC_(acc update device(this->u[0:this->Ntotal]))
-}
-#endif
-
-// Stub implementations when not using CUDA or ACC
-#ifndef USE_CUDA
-template<typename T>
-void Field<T>::fillDevice_cuda(T value) {}
-#endif
-
-#ifndef USE_ACC
-template<typename T>
-void Field<T>::fillDevice_acc(T value) {}
 #endif
 
 // Stub implementations when not using CUDA

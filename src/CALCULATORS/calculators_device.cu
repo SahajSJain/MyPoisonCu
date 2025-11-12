@@ -1,8 +1,11 @@
 // CALCULATORS/calculators_device.cu
 // All device (non-kernel) functions for calculator operations
-
 #include "calculators.cuh"
 #include "../INCLUDE/structs.cuh"
+#include <cub/cub.cuh>
+#include <cuda_runtime.h>
+#include <iostream>
+
 
 // Index macros for 2D grid with boundaries
 #define IDX(i, j, Nb) ((i) * (Nb) + (j))
@@ -13,47 +16,65 @@
 #define CENTER IDX(i, j, Nb)
 
 // ===================== DOT PRODUCT DEVICE FUNCTIONS =====================
-void calculate_dot_product_device(Field<real_t> &u1, Field<real_t> &u2, real_t &result,
-								  int numThreads, int numBlocks)
+void calculate_dot_product_device(Field<real_t> &u1, Field<real_t> &u2, real_t &result, 
+                                  Field<real_t> &temp, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
   int N = u1.N;
   int Nb = u1.Nb;
   real_t *d_dotproduct;
   cudaMalloc((void**)&d_dotproduct, sizeof(real_t));
-  real_t zero = ZERO;
-  cudaMemcpy(d_dotproduct, &zero, sizeof(real_t), cudaMemcpyHostToDevice);
+  
   dim3 blockSize(numThreads, numThreads);
   dim3 gridSize(numBlocks, numBlocks);
+  
+  // Call kernel with temp array
   calculate_dot_product_kernel<<<gridSize, blockSize>>>(
-	  u1.u_d, u2.u_d, d_dotproduct, N, Nb);
-  cudaDeviceSynchronize();
-  real_t host_result;
-  cudaMemcpy(&host_result, d_dotproduct, sizeof(real_t), cudaMemcpyDeviceToHost);
+	  u1.u_d, u2.u_d, d_dotproduct, temp.u_d, N, Nb);
+  
+  // Use CUB to reduce temp array
+  size_t temp_storage_bytes = 0;
+  cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, temp.u_d, d_dotproduct, N*N);
+  void* d_temp_storage = nullptr;
+  cudaMalloc(&d_temp_storage, temp_storage_bytes);
+  
+  cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, temp.u_d, d_dotproduct, N*N);
+  
+  cudaMemcpy(&result, d_dotproduct, sizeof(real_t), cudaMemcpyDeviceToHost);
+  
+  cudaFree(d_temp_storage);
   cudaFree(d_dotproduct);
-  result = host_result;
 #endif
 }
 
 void calculate_opinv_dot_product_device(Field<real_t> &u1, Field<real_t> &u2, Operator &op, real_t &result,
-										int numThreads, int numBlocks)
+                                        Field<real_t> &temp, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
   int N = u1.N;
   int Nb = u1.Nb;
   real_t *d_dotproduct;
   cudaMalloc((void**)&d_dotproduct, sizeof(real_t));
-  real_t zero = ZERO;
-  cudaMemcpy(d_dotproduct, &zero, sizeof(real_t), cudaMemcpyHostToDevice);
+  
   dim3 blockSize(numThreads, numThreads);
   dim3 gridSize(numBlocks, numBlocks);
+  
+  // Call kernel with temp array
   calculate_opinv_dot_product_kernel<<<gridSize, blockSize>>>(
-	  u1.u_d, u2.u_d, op.CoPinv_d, d_dotproduct, N, Nb);
-  cudaDeviceSynchronize();
-  real_t host_result;
-  cudaMemcpy(&host_result, d_dotproduct, sizeof(real_t), cudaMemcpyDeviceToHost);
+	  u1.u_d, u2.u_d, op.CoPinv_d, d_dotproduct, temp.u_d, N, Nb);
+  
+  // Use CUB to reduce temp array
+  size_t temp_storage_bytes = 0;
+  cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, temp.u_d, d_dotproduct, N*N);
+  void* d_temp_storage = nullptr;
+  cudaMalloc(&d_temp_storage, temp_storage_bytes);
+  
+  cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, temp.u_d, d_dotproduct, N*N);
+  
+  cudaMemcpy(&result, d_dotproduct, sizeof(real_t), cudaMemcpyDeviceToHost);
+  
+  cudaFree(d_temp_storage);
   cudaFree(d_dotproduct);
-  result = host_result;
 #endif
 }
 
@@ -155,21 +176,35 @@ void calculate_matrix_vector_device(Field<real_t> &phi, Operator &op, Field<real
 void calculate_residual_norm_device(Field<real_t> &u, Field<real_t> &rhs, Operator &op, Field<real_t> &result, real_t &norm, int numThreads, int numBlocks)
 {
 #ifdef USE_CUDA
-  int N = op.N;
-  int Nb = op.Nb;
-  real_t *d_norm;
-  cudaMalloc((void**)&d_norm, sizeof(real_t));
-  real_t zero = ZERO;
-  cudaMemcpy(d_norm, &zero, sizeof(real_t), cudaMemcpyHostToDevice);
-  dim3 blockSize(numThreads, numThreads);
-  dim3 gridSize(numBlocks, numBlocks);
-  calculate_residual_norm_kernel<<<gridSize, blockSize>>>(
-	  u.u_d, rhs.u_d, op.CoE_d, op.CoW_d, op.CoN_d, op.CoS_d, op.CoP_d, result.u_d, d_norm, N, Nb);
-  cudaDeviceSynchronize();
-  real_t host_norm;
-  cudaMemcpy(&host_norm, d_norm, sizeof(real_t), cudaMemcpyDeviceToHost);
-  cudaFree(d_norm);
-  norm = host_norm / (N * N);
+	int N = op.N;
+	int Nb = op.Nb;
+	dim3 blockSize(numThreads, numThreads);
+	dim3 gridSize(numBlocks, numBlocks);
+	calculate_residual_kernel<<<gridSize, blockSize>>>(
+		u.u_d, rhs.u_d,
+		op.CoE_d, op.CoW_d, op.CoN_d, op.CoS_d, op.CoP_d,
+		result.u_d, N, Nb
+	);
+	cudaDeviceSynchronize();
+
+	// Add CUB reduction for norm calculation
+	size_t temp_storage_bytes = 0;
+	cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, result.u_d, &norm, N*N);
+	void* d_temp_storage = nullptr;
+	cudaMalloc(&d_temp_storage, temp_storage_bytes);
+	
+	real_t *d_norm;
+	cudaMalloc(&d_norm, sizeof(real_t));
+	
+	// Calculate L2 norm squared
+	cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, result.u_d, d_norm, N*N);
+	
+	real_t host_norm;
+	cudaMemcpy(&host_norm, d_norm, sizeof(real_t), cudaMemcpyDeviceToHost);
+	norm = host_norm;
+	
+	cudaFree(d_temp_storage);
+	cudaFree(d_norm);
 #endif
 }
 
