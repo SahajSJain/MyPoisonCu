@@ -25,7 +25,7 @@ on a rectangular domain with configurable boundary conditions using finite diffe
 ## Key Data Structures in OOP based design:
 
 - Fields : Stores a 2 dimensional array, along with its size, operating range of inner grid points (as opposed to boundary points), and a device copy. Also contains dedicated functions for uploading to and downloading from the device, allocation and deallocation to both host and device. Template based design. 
-- Operator : Left hand size 5 point operator for linear equation
+- Operator : Left hand side 5 point operator for linear equation
   ```
   L(u) = f
   ```
@@ -37,7 +37,7 @@ Overall, I have some regrets; would have been better to do unified memory as it 
 
 ## Performance
 
-### BICGSTAB, N = 4096, N×N = 16777216
+### BICGSTAB, N = 4096, N×N = 16,777,216
 
 | Method | Machine | Time per timestep (s) | Relative Speedup vs Serial | Relative Speedup vs OpenMP |
 |--------|---------|----------------------|----------------------------|----------------------------|
